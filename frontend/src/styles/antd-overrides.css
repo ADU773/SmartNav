@@ -1,0 +1,200 @@
+/* ============================================================
+   SmartNav360 — Ant Design Theme Overrides
+   Aligns Ant Design components with our design tokens
+   ============================================================ */
+
+/* ---- Card ---- */
+.ant-card {
+  border-radius: var(--radius-lg) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: box-shadow var(--transition-base), border-color var(--transition-base) !important;
+}
+
+.ant-card:hover {
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* ---- Button ---- */
+.ant-btn {
+  border-radius: var(--radius-md) !important;
+  font-weight: var(--font-weight-medium) !important;
+  transition: all var(--transition-fast) !important;
+  height: 36px !important;
+  font-size: var(--font-size-base) !important;
+}
+
+.ant-btn-lg {
+  height: 42px !important;
+  font-size: var(--font-size-md) !important;
+}
+
+.ant-btn-sm {
+  height: 30px !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+/* ---- Input ---- */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--radius-md) !important;
+  border-color: var(--color-border) !important;
+  font-size: var(--font-size-base) !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-select-selector:hover,
+.ant-picker:hover {
+  border-color: var(--color-border-hover) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px var(--color-primary-light) !important;
+}
+
+/* ---- Table ---- */
+.ant-table {
+  border-radius: var(--radius-lg) !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--color-bg-subtle) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  font-size: var(--font-size-sm) !important;
+  color: var(--color-text-secondary) !important;
+  text-transform: uppercase !important;
+  letter-spacing: var(--letter-spacing-wide) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--color-border-light) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--color-bg-hover) !important;
+}
+
+/* ---- Modal ---- */
+.ant-modal-content {
+  border-radius: var(--radius-xl) !important;
+  padding: var(--space-6) !important;
+}
+
+.ant-modal-header {
+  border-bottom: none !important;
+  padding: 0 0 var(--space-4) 0 !important;
+}
+
+.ant-modal-title {
+  font-size: var(--font-size-lg) !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.ant-modal-footer {
+  border-top: none !important;
+  padding: var(--space-4) 0 0 0 !important;
+}
+
+/* ---- Menu (Sidebar) ---- */
+.ant-menu {
+  border-inline-end: none !important;
+}
+
+.ant-menu-item {
+  border-radius: var(--radius-md) !important;
+  margin-inline: var(--space-2) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.ant-menu-item-selected {
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+/* ---- Tag ---- */
+.ant-tag {
+  border-radius: var(--radius-full) !important;
+  font-size: var(--font-size-xs) !important;
+  font-weight: var(--font-weight-medium) !important;
+  padding: 2px 10px !important;
+}
+
+/* ---- Notification ---- */
+.ant-notification-notice {
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* ---- Breadcrumb ---- */
+.ant-breadcrumb {
+  font-size: var(--font-size-sm) !important;
+}
+
+.ant-breadcrumb-separator {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* ---- Tabs ---- */
+.ant-tabs-tab {
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+/* ---- Upload ---- */
+.ant-upload-drag {
+  border-radius: var(--radius-lg) !important;
+  border-color: var(--color-border) !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.ant-upload-drag:hover {
+  border-color: var(--color-primary) !important;
+}
+
+/* ---- Badge ---- */
+.ant-badge-count {
+  font-size: var(--font-size-xs) !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+/* ---- Tooltip ---- */
+.ant-tooltip-inner {
+  border-radius: var(--radius-md) !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+/* ---- Dropdown ---- */
+.ant-dropdown-menu {
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: var(--space-1) !important;
+}
+
+.ant-dropdown-menu-item {
+  border-radius: var(--radius-md) !important;
+  font-size: var(--font-size-base) !important;
+}
+
+/* ---- Form ---- */
+.ant-form-item-label > label {
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text-primary) !important;
+  font-size: var(--font-size-base) !important;
+}
+
+/* ---- Empty ---- */
+.ant-empty-description {
+  color: var(--color-text-tertiary) !important;
+}

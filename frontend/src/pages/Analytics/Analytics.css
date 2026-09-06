@@ -1,0 +1,38 @@
+.analytics__card {
+  height: 100%;
+}
+
+.analytics__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.analytics__card-icon {
+  font-size: 24px;
+  color: var(--color-primary);
+}
+
+.analytics__card-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
+}
+
+.analytics__card-desc {
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-4);
+}
+
+.analytics__card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) 0;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}

@@ -1,0 +1,52 @@
+.hotspot-builder__graph-card {
+  min-height: 300px;
+}
+
+.hotspot-builder__graph-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+}
+
+.hotspot-builder__graph-icon {
+  font-size: 40px;
+  color: var(--color-text-tertiary);
+  opacity: 0.4;
+  margin-bottom: var(--space-4);
+}
+
+.hotspot-builder__graph-placeholder h4 {
+  font-size: var(--font-size-md);
+  margin-bottom: var(--space-2);
+}
+
+.hotspot-builder__graph-placeholder p {
+  font-size: var(--font-size-sm);
+  max-width: 280px;
+}
+
+.hotspot-builder__stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.hotspot-builder__stat:last-child {
+  border-bottom: none;
+}
+
+.hotspot-builder__stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.hotspot-builder__stat-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}

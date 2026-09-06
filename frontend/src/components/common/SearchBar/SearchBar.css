@@ -1,0 +1,7 @@
+.search-bar {
+  max-width: 320px;
+}
+
+.search-bar__icon {
+  color: var(--color-text-tertiary);
+}

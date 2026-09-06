@@ -1,0 +1,10 @@
+const router = require("express").Router();
+const features = require("../controllers/featureController");
+router.get("/navigation/path", features.shortestPath);
+router.post("/ai/chat", features.aiChat);
+router.post("/analytics/events", features.trackEvent);
+router.get("/analytics/projects/:projectId", features.getAnalytics);
+router.post("/projects/:id/publish", features.publishProject);
+router.get("/projects/:id/export", features.exportProject);
+router.get("/published/:token", features.getPublishedProject);
+module.exports = router;
