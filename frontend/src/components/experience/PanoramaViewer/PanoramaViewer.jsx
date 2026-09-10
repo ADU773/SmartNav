@@ -3,30 +3,57 @@
  * Marzipano Viewer with Hotspot Support
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import Marzipano from "marzipano";
 
 import {
   ExpandOutlined,
   AimOutlined,
   VideoCameraOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 
 import { Button, Tooltip, Space } from "antd";
 
 import "./PanoramaViewer.css";
+import MiniMap from "../../map/MiniMap";
 
 export default function PanoramaViewer({
   scene,
   onNavigate,
   editMode = false,
-  onPanoramaClick
+  onPanoramaClick,
+  miniMap,
 }) {
   const mountRef = useRef(null);
 
   const viewerRef = useRef(null);
 
   const sceneRef = useRef(null);
+  const viewerContainerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(true);
+  const [viewYaw, setViewYaw] = useState(0);
+  const animationFrameRef = useRef(null);
+
+  useEffect(() => {
+    const updateFullscreen = () => {
+      setIsFullscreen(document.fullscreenElement === viewerContainerRef.current);
+      // Marzipano must recalculate its canvas after the browser changes size.
+      requestAnimationFrame(() => viewerRef.current?.updateSize?.());
+    };
+    document.addEventListener("fullscreenchange", updateFullscreen);
+    return () => document.removeEventListener("fullscreenchange", updateFullscreen);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await viewerContainerRef.current?.requestFullscreen();
+    } catch {
+      // Fullscreen is unavailable in some embedded browsers.
+    }
+  };
 
   const handleViewerClick = (event) => {
 
@@ -89,6 +116,12 @@ export default function PanoramaViewer({
 
     // Camera View
     const view = new Marzipano.RectilinearView(null, limiter);
+    const updateMapHeading = () => {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = requestAnimationFrame(() => setViewYaw(view.yaw()));
+    };
+    view.addEventListener("change", updateMapHeading);
+    updateMapHeading();
 
     // Create Scene
     const panoScene = viewer.createScene({
@@ -141,6 +174,8 @@ export default function PanoramaViewer({
 
     // Cleanup
     return () => {
+      view.removeEventListener("change", updateMapHeading);
+      cancelAnimationFrame(animationFrameRef.current);
       if (mountRef.current) {
         mountRef.current.innerHTML = "";
       }
@@ -148,12 +183,22 @@ export default function PanoramaViewer({
   }, [scene, onNavigate]);
 
   return (
-    <div className="panorama-viewer">
+    <div ref={viewerContainerRef} className="panorama-viewer">
       {/* Marzipano Mount */}
       <div
         ref={mountRef}
         className="panorama-viewer__canvas"
       />
+
+      {miniMap?.scenes?.length > 0 && showMiniMap && (
+        <div className="panorama-viewer__minimap" aria-label="Live mini-map">
+          <div className="panorama-viewer__minimap-header">
+            <span><EnvironmentOutlined /> Live map · tap a pin to navigate</span>
+            <button type="button" onClick={() => setShowMiniMap(false)} aria-label="Hide live map">×</button>
+          </div>
+          <MiniMap {...miniMap} heading={viewYaw} />
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="panorama-viewer__toolbar">
@@ -166,13 +211,20 @@ export default function PanoramaViewer({
             />
           </Tooltip>
 
-          <Tooltip title="Fullscreen">
+          <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
             <Button
               type="text"
               icon={<ExpandOutlined />}
               className="panorama-viewer__tool"
+              onClick={toggleFullscreen}
             />
           </Tooltip>
+
+          {miniMap?.scenes?.length > 0 && !showMiniMap && (
+            <Tooltip title="Show live map">
+              <Button type="text" icon={<EnvironmentOutlined />} className="panorama-viewer__tool" onClick={() => setShowMiniMap(true)} />
+            </Tooltip>
+          )}
 
           <Tooltip title="VR Mode (Coming Soon)">
             <Button

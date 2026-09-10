@@ -34,6 +34,11 @@ const ProjectService = {
     }
   },
 
+  async getProject(id) {
+    const response = await apiClient.get(`${API_ENDPOINTS.PROJECTS}/${id}`);
+    return response.data;
+  },
+
   /**
    * Future: Update a project by ID.
    * @param {string} id

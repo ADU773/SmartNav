@@ -16,6 +16,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard'));
 const AssetManager = lazy(() => import('../pages/AssetManager'));
 const SceneBuilder = lazy(() => import('../pages/SceneBuilder'));
 const HotspotBuilder = lazy(() => import('../pages/HotspotBuilder'));
+const MapEditor = lazy(() => import('../pages/MapEditor'));
 const VirtualExperience = lazy(() => import('../pages/VirtualExperience'));
 const AIWorkspace = lazy(() => import('../pages/AIWorkspace'));
 const Analytics = lazy(() => import('../pages/Analytics'));
@@ -104,6 +105,10 @@ const router = createBrowserRouter([
             <HotspotBuilder />
           </SuspenseWrapper>
         ),
+      },
+      {
+        path: '/map',
+        element: <SuspenseWrapper><MapEditor /></SuspenseWrapper>,
       },
       {
         path: '/experience',

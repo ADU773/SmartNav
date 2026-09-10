@@ -64,6 +64,11 @@ const SceneService = {
     return response.data;
   },
 
+  async updateScene(id, data) {
+    const response = await apiClient.put(API_ENDPOINTS.SCENE_BY_ID(id), data);
+    return response.data;
+  },
+
   /**
    * Connect two scenes by creating a hotspot.
    * @param {string} sourceSceneId

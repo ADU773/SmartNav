@@ -18,6 +18,7 @@ import PanoramaViewer from '../../components/experience/PanoramaViewer';
 import EmptyState from '../../components/common/EmptyState';
 import AIService from '../../services/ai.service';
 import FeatureService from '../../services/feature.service';
+import ProjectService from '../../services/project.service';
 import './VirtualExperience.css';
 
 export default function VirtualExperience() {
@@ -33,8 +34,10 @@ export default function VirtualExperience() {
   const [detecting, setDetecting] = useState(false);
   const [detections, setDetections] = useState([]);
   const [sharedProject, setSharedProject] = useState(null);
+  const [projectDetails, setProjectDetails] = useState(null);
   const shareToken = new URLSearchParams(location.search).get('share');
   const activeProject = sharedProject || currentProject;
+  const floorPlan = sharedProject?.floorPlan || projectDetails?.floorPlan || currentProject?.floorPlan;
 
   const sessionId = (() => {
     const key = 'smartnav360_session_id';
@@ -82,6 +85,11 @@ export default function VirtualExperience() {
   useEffect(() => {
     if (selectedScene?._id && activeProject?._id) FeatureService.trackEvent({ projectId: activeProject._id, sceneId: selectedScene._id, type: 'view', sessionId }).catch(() => {});
   }, [selectedScene?._id, activeProject?._id]);
+
+  useEffect(() => {
+    if (shareToken || !currentProject?._id) return;
+    ProjectService.getProject(currentProject._id).then((result) => setProjectDetails(result.data)).catch(() => {});
+  }, [currentProject?._id, shareToken]);
 
   const findRoute = async () => {
     if (!selectedScene?._id || !routeTarget) return;
@@ -142,7 +150,11 @@ export default function VirtualExperience() {
 
       {/* Center — Panorama Viewer */}
       <main className="virtual-experience__viewer">
-        <PanoramaViewer scene={selectedScene} onNavigate={handleNavigate} />
+        <PanoramaViewer
+          scene={selectedScene}
+          onNavigate={handleNavigate}
+          miniMap={{ floorPlan, scenes, activeSceneId: selectedScene?._id, onSelect: handleNavigate }}
+        />
       </main>
 
       {/* Right Sidebar — Scene Info */}

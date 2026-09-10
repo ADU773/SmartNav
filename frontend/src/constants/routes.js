@@ -10,6 +10,7 @@ export const ROUTES = {
   ASSETS: '/assets',
   SCENES: '/scenes',
   HOTSPOTS: '/hotspots',
+  MAP: '/map',
   EXPERIENCE: '/experience',
   AI: '/ai',
   ANALYTICS: '/analytics',

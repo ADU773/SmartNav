@@ -52,6 +52,14 @@ const sceneSchema = new mongoose.Schema({
         default: [],
     },
 
+    mapPosition: {
+        type: {
+            x: { type: Number, min: 0, max: 100 },
+            y: { type: Number, min: 0, max: 100 },
+        },
+        default: undefined,
+    },
+
     createdAt: {
         type: Date,
         default: Date.now,
