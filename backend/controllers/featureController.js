@@ -42,9 +42,10 @@ const aiChat = async (req, res) => {
     const scenes = projectId ? await Scene.find({ projectId }).select("name metadata hotspots").lean() : [];
     const context = scenes.map((s) => `${s.name} (${s.hotspots?.length || 0} connections)`).join(", ") || "No scenes created yet";
     if (process.env.GEMINI_API_KEY) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `You are SmartNav360's concise navigation assistant. Project scenes: ${context}. User: ${message}` }] }] }) });
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `You are SmartNav360's concise navigation assistant. Project scenes: ${context}. User: ${message}` }] }] }) });
       const data = await response.json();
       if (response.ok) return res.json({ success: true, data: { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "I could not generate a response." } });
+      return res.status(502).json({ success: false, message: `Gemini could not answer: ${data.error?.message || "the provider rejected the request."}` });
     }
     res.json({ success: true, data: { reply: `I can help with this project. Available scenes: ${context}. Add GEMINI_API_KEY to backend/.env to enable Gemini answers.` } });
   } catch (error) { res.status(500).json({ success: false, message: error.message }); }
