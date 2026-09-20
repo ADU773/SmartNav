@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const Project = require("../models/Project");
 const Scene = require("../models/Scene");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
+const { requireId, pickFields, sendError, withProject, validateEvent } = require("../services/integrity");
 
 const graphFor = async (projectId) => {
   const scenes = await Scene.find({ projectId }).lean();
@@ -50,7 +51,18 @@ const aiChat = async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
-const trackEvent = async (req, res) => { try { const event = await AnalyticsEvent.create(req.body); res.status(201).json({ success: true, data: event }); } catch (error) { res.status(400).json({ success: false, message: error.message }); } };
+const trackEvent = async (req, res) => {
+  try {
+    const data = pickFields(req.body, ["projectId", "sceneId", "type", "sessionId", "metadata"]);
+    requireId(data.projectId, "project ID");
+    const event = await withProject(data.projectId, async (_project, session) => {
+      await validateEvent(data, session);
+      const [created] = await AnalyticsEvent.create([data], { session });
+      return created;
+    });
+    res.status(201).json({ success: true, data: event });
+  } catch (error) { sendError(res, error); }
+};
 const getAnalytics = async (req, res) => { try {
   const { projectId } = req.params; const events = await AnalyticsEvent.find({ projectId }).lean();
   const views = events.filter((event) => event.type === "view"); const sessions = new Set(events.map((event) => event.sessionId));

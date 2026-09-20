@@ -1,37 +1,58 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { randomUUID } = require("crypto");
 
 const uploadDirectory = path.join(__dirname, "..", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
+const imageTypes = new Map([
+    [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"],
+    [".png", "image/png"], [".webp", "image/webp"], [".gif", "image/gif"],
+]);
 const storage = multer.diskStorage({
-
-    destination: function (req, file, cb) {
-        cb(null, uploadDirectory);
+    destination: uploadDirectory,
+    filename: (req, file, cb) => {
+        cb(null, randomUUID() + path.extname(file.originalname).toLowerCase());
     },
-
-    filename: function (req, file, cb) {
-
-        const uniqueName = Date.now() + path.extname(file.originalname);
-
-        cb(null, uniqueName);
-    }
-
 });
-
-const imageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/x-exr", "application/octet-stream"]);
-const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".exr"]);
 
 const upload = multer({
     storage,
-    // High-resolution equirectangular 360° panoramas are commonly 20–60 MB.
-    limits: { fileSize: 100 * 1024 * 1024 },
+    // Keep panoramas on disk rather than buffering up to 100 MB in memory.
+    limits: { fileSize: 100 * 1024 * 1024, files: 1, fields: 1 },
     fileFilter: (req, file, cb) => {
-        const extension = path.extname(file.originalname).toLowerCase();
-        if (allowedExtensions.has(extension) && imageTypes.has(file.mimetype)) return cb(null, true);
-        cb(new Error("Only JPG, PNG, WebP, GIF, SVG, and EXR panorama files are supported."));
+        const expectedType = imageTypes.get(path.extname(file.originalname).toLowerCase());
+        if (expectedType && (file.mimetype === expectedType || file.mimetype === "application/octet-stream")) {
+            return cb(null, true);
+        }
+        cb(new Error("Only JPG, PNG, WebP, and GIF images are supported. Convert SVG or EXR files before uploading."));
     },
 });
 
-module.exports = upload;    
+// MIME headers are client-controlled. Verify the stored bytes as well.
+// This identifies formats; it is not a full image decoder or malware scanner.
+async function validateImage(file) {
+    const handle = await fs.promises.open(file.path, "r");
+    try {
+        const header = Buffer.alloc(12);
+        const { bytesRead } = await handle.read(header, 0, header.length, 0);
+        const extension = path.extname(file.filename).toLowerCase();
+        const matches = bytesRead >= 12 && (
+            ((extension === ".jpg" || extension === ".jpeg") && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) ||
+            (extension === ".png" && header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
+            (extension === ".gif" && ["GIF87a", "GIF89a"].includes(header.toString("ascii", 0, 6))) ||
+            (extension === ".webp" && header.toString("ascii", 0, 4) === "RIFF" && header.toString("ascii", 8, 12) === "WEBP")
+        );
+        if (!matches) {
+            const error = new Error("The file contents do not match a supported image format.");
+            error.status = 400;
+            throw error;
+        }
+    } finally {
+        await handle.close();
+    }
+}
+
+module.exports = upload;
+module.exports.validateImage = validateImage;

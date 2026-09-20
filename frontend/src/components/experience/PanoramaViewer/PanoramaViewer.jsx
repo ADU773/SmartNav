@@ -17,6 +17,7 @@ import { Button, Tooltip, Space } from "antd";
 
 import "./PanoramaViewer.css";
 import MiniMap from "../../map/MiniMap";
+import { getImageUrl } from "../../../utils/getImageUrl";
 
 export default function PanoramaViewer({
   scene,
@@ -95,7 +96,7 @@ export default function PanoramaViewer({
     viewerRef.current = viewer;
 
     // Image URL
-    const imageUrl = `http://localhost:5000${scene.image}`;
+    const imageUrl = getImageUrl(scene.image);
 
     // Image Source
     const source = Marzipano.ImageUrlSource.fromString(imageUrl);
