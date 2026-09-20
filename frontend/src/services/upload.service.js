@@ -10,16 +10,20 @@ const UploadService = {
   /**
    * Upload an image file.
    * @param {File} file - The file to upload
+   * @param {string} projectId - The project that owns the upload
    * @param {function} [onProgress] - Progress callback (0-100)
-   * @returns {Promise<object>} { success, filename, path }
+   * @returns {Promise<object>} { success, data: { filename, path, ... } }
    */
 
 
   async uploadImage(file, projectId, onProgress) {
+    if (!file || !projectId) throw new Error('An image and project are required.');
     const formData = new FormData();
-    formData.append('image', file);
     formData.append('projectId', projectId);
+    formData.append('image', file);
     const response = await apiClient.post(API_ENDPOINTS.UPLOAD, formData, {
+      // Large panoramas can take longer than the default API timeout.
+      timeout: 300000,
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const percent = Math.round(

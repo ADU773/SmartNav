@@ -10,9 +10,8 @@ import { API_BASE_URL } from '../constants/api';
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Axios serializes plain objects as JSON and lets the browser set the
+  // multipart boundary for FormData. Do not force a content type here.
 });
 
 /* ---- Request Interceptor ---- */
