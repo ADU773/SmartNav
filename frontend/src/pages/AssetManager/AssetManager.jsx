@@ -178,7 +178,7 @@ export default function AssetManager() {
       <Dragger
         customRequest={handleUpload}
         showUploadList={false}
-        accept="image/*,.exr"
+        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
         className="asset-manager__dragger"
       >
         <p className="ant-upload-drag-icon">
@@ -188,7 +188,7 @@ export default function AssetManager() {
           Click or drag 360° panoramic images to upload
         </p>
         <p className="ant-upload-hint">
-          Supports JPG, PNG, WebP, GIF, SVG, and EXR panoramas up to 100 MB.
+          Supports JPG, PNG, WebP, and GIF images up to 100 MB. Convert SVG or EXR files before uploading.
         </p>
       </Dragger>
 
