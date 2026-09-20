@@ -14,7 +14,17 @@ const visionRoutes = require("./routes/visionRoutes");
 
 const app = express();
 
-connectDB();
+const { processPendingFiles } = require("./services/fileCleanup");
+let cleaningFiles = false;
+const retryFileCleanup = async () => {
+    if (cleaningFiles || mongoose.connection.readyState !== 1) return;
+    cleaningFiles = true;
+    try { await processPendingFiles(); }
+    catch (error) { console.error("Upload cleanup deferred:", error.message); }
+    finally { cleaningFiles = false; }
+};
+connectDB().then(retryFileCleanup);
+setInterval(retryFileCleanup, 60000).unref();
 
 app.use(cors());
 app.use(express.json());

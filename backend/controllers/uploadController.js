@@ -1,11 +1,12 @@
 const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const Asset = require("../models/Asset");
-const Project = require("../models/Project");
+const { withProject, sendError } = require("../services/integrity");
 const { validateImage } = require("../middleware/uploadMiddleware");
 
 const uploadImage = async (req, res) => {
     let asset;
+    let uncertainCommit = false;
     try {
         const { projectId } = req.body || {};
         if (typeof projectId !== "string" || !mongoose.isObjectIdOrHexString(projectId)) {
@@ -15,22 +16,24 @@ const uploadImage = async (req, res) => {
             return res.status(400).json({ success: false, message: "Select an image file to upload." });
         }
         await validateImage(req.file);
-        if (!await Project.exists({ _id: projectId })) {
-            return res.status(404).json({ success: false, message: "Project not found." });
-        }
-        asset = await Asset.create({
-            projectId,
-            filename: req.file.filename,
-            originalName: req.file.originalname,
-            path: `/uploads/${req.file.filename}`,
+        asset = await withProject(projectId, async (_project, session) => {
+            const [created] = await Asset.create([{
+                projectId,
+                filename: req.file.filename,
+                originalName: req.file.originalname,
+                path: `/uploads/${req.file.filename}`,
+            }], { session });
+            return created;
         });
         return res.status(200).json({ success: true, data: asset });
     } catch (error) {
-        return res.status(error.status || 500).json({ success: false, message: error.message });
+        // A lost commit acknowledgement may still mean the asset was saved.
+        uncertainCommit = !!error.hasErrorLabel?.("UnknownTransactionCommitResult");
+        return sendError(res, error);
     } finally {
         // Multer cleans up its own parsing errors. Once it hands off to this
         // controller, remove the file unless its asset record was saved.
-        if (req.file && !asset) {
+        if (req.file && !asset && !uncertainCommit) {
             try {
                 await fs.unlink(req.file.path);
             } catch (cleanupError) {

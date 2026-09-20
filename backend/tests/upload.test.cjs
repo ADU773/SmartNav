@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const express = require('express');
 const Asset = require('../models/Asset');
 const Project = require('../models/Project');
+const mongoose = require('mongoose');
 const upload = require('../middleware/uploadMiddleware');
 const uploadRoutes = require('../routes/uploadRoutes');
 
@@ -18,13 +19,14 @@ test('upload HTTP contract and failure cleanup', async (t) => {
     let failDatabase = false;
     const projectId = '507f1f77bcf86cd799439011';
     t.mock.method(upload.storage, 'getDestination', (req, file, cb) => cb(null, directory));
-    t.mock.method(Project, 'exists', async ({ _id }) => _id === projectId ? { _id } : null);
-    t.mock.method(Asset, 'create', async (data) => {
+    t.mock.method(mongoose.connection, 'transaction', async (work) => work({}));
+    t.mock.method(Project, 'findOneAndUpdate', async ({ _id }) => _id === projectId ? { _id } : null);
+    t.mock.method(Asset, 'create', async ([data]) => {
         if (failDatabase) throw new Error('Simulated database failure');
         const asset = new Asset(data);
         await asset.validate();
         records.push(asset);
-        return asset;
+        return [asset];
     });
     t.mock.method(Asset, 'find', async ({ projectId: id }) => records.filter((asset) => String(asset.projectId) === id));
     const requests = [];
