@@ -10,6 +10,8 @@ import { CheckCircleFilled, ClockCircleOutlined, AppstoreOutlined } from '@ant-d
 import { useProject } from '../../contexts/ProjectContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import SceneService from '../../services/scene.service';
+import UploadService from '../../services/upload.service';
+import ProjectService from '../../services/project.service';
 import { formatRelativeDate } from '../../utils/formatDate';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import DashboardCards from '../../components/dashboard/DashboardCards';
@@ -23,19 +25,29 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { currentProject, projects } = useProject();
   const [scenes, setScenes] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [published, setPublished] = useState(false);
 
   useEffect(() => {
     if (!currentProject?._id) {
       setScenes([]);
+      setAssets([]);
+      setPublished(false);
       return;
     }
     SceneService.getScenes(currentProject._id)
       .then((result) => setScenes(result.success ? result.data || [] : []))
       .catch(() => setScenes([]));
+    UploadService.getUploads(currentProject._id)
+      .then((result) => setAssets(result.success ? result.data || [] : []))
+      .catch(() => setAssets([]));
+    ProjectService.getProject(currentProject._id)
+      .then((result) => setPublished(!!result.data?.published))
+      .catch(() => setPublished(false));
   }, [currentProject?._id]);
 
   const totalConnections = scenes.reduce((acc, scene) => acc + (scene.hotspots?.length || 0), 0);
-  const assetCount = scenes.filter((s) => s.image).length;
+  const assetCount = assets.length;
 
   const stats = {
     projects: projects.length,
@@ -53,7 +65,7 @@ export default function Dashboard() {
     { label: 'Create your first scene', done: scenes.length > 0, path: '/scenes' },
     { label: 'Connect scenes with hotspots', done: totalConnections > 0, path: '/hotspots' },
     { label: 'Preview the virtual experience', done: scenes.length > 0, path: '/experience' },
-    { label: 'Publish & share', done: false, path: '/deployment' },
+    { label: 'Publish & share', done: published, path: '/deployment' },
   ];
 
   return (
