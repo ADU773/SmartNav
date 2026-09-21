@@ -25,6 +25,8 @@ export default function PanoramaViewer({
   editMode = false,
   onPanoramaClick,
   miniMap,
+  navigationTargetId,
+  navigationTargetName,
 }) {
   const mountRef = useRef(null);
 
@@ -146,17 +148,17 @@ export default function PanoramaViewer({
     if (scene.hotspots && scene.hotspots.length > 0) {
       scene.hotspots.forEach((hotspot) => {
         const element = document.createElement("div");
+        const isNextRouteStop = String(hotspot.targetScene) === String(navigationTargetId);
 
-        element.className = "smartnav-hotspot";
+        element.className = `smartnav-hotspot ${isNextRouteStop ? "smartnav-hotspot--route" : ""}`;
 
         // Inline SVG keeps the navigation location marker crisp at every zoom level.
-        element.innerHTML = `
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
-          </svg>`;
+        element.innerHTML = isNextRouteStop
+          ? `<span class="smartnav-hotspot__next">Next</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 22 20l-10-4-10 4L12 2Zm0 6.2-3.7 7.1 3.7-1.5 3.7 1.5L12 8.2Z" /></svg>`
+          : `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" /></svg>`;
 
         const destination = hotspot.label || "location";
-        element.title = `Go to ${destination}`;
+        element.title = isNextRouteStop ? `Next stop: ${navigationTargetName || destination}` : `Go to ${destination}`;
         element.setAttribute("role", "button");
         element.setAttribute("aria-label", `Navigate to ${destination}`);
 
@@ -181,7 +183,7 @@ export default function PanoramaViewer({
         mountRef.current.innerHTML = "";
       }
     };
-  }, [scene, onNavigate]);
+  }, [scene, onNavigate, navigationTargetId, navigationTargetName]);
 
   return (
     <div ref={viewerContainerRef} className="panorama-viewer">
@@ -194,7 +196,7 @@ export default function PanoramaViewer({
       {miniMap?.scenes?.length > 0 && showMiniMap && (
         <div className="panorama-viewer__minimap" aria-label="Live mini-map">
           <div className="panorama-viewer__minimap-header">
-            <span><EnvironmentOutlined /> Live map · tap a pin to navigate</span>
+            <span><EnvironmentOutlined /> Live map · choose destination</span>
             <button type="button" onClick={() => setShowMiniMap(false)} aria-label="Hide live map">×</button>
           </div>
           <MiniMap {...miniMap} heading={viewYaw} />

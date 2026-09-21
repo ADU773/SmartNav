@@ -28,6 +28,8 @@ import { useProject } from "../../contexts/ProjectContext";
 import './AssetManager.css';
 
 const { Dragger } = Upload;
+const ALLOWED_ASSET_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.exr'];
+const MAX_ASSET_SIZE = 500 * 1024 * 1024;
 
 export default function AssetManager() {
   useDocumentTitle('Assets');
@@ -87,6 +89,19 @@ export default function AssetManager() {
   );
 
   const isPreviewableImage = (asset) => !asset.displayName?.toLowerCase().endsWith('.exr');
+
+  const validateAsset = (file) => {
+    const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`;
+    if (!ALLOWED_ASSET_EXTENSIONS.includes(extension)) {
+      error('Unsupported asset', 'Upload a JPG, PNG, WebP, GIF, SVG, or EXR panorama.');
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > MAX_ASSET_SIZE) {
+      error('Asset is too large', 'Choose an image that is 500 MB or smaller.');
+      return Upload.LIST_IGNORE;
+    }
+    return true;
+  };
 
   const handleUpload = useCallback(
     async (options) => {
@@ -178,7 +193,8 @@ export default function AssetManager() {
       <Dragger
         customRequest={handleUpload}
         showUploadList={false}
-        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+        beforeUpload={validateAsset}
+        accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.exr"
         className="asset-manager__dragger"
       >
         <p className="ant-upload-drag-icon">
@@ -188,7 +204,7 @@ export default function AssetManager() {
           Click or drag 360° panoramic images to upload
         </p>
         <p className="ant-upload-hint">
-          Supports JPG, PNG, WebP, and GIF images up to 100 MB. Convert SVG or EXR files before uploading.
+          Supports JPG, PNG, WebP, GIF, SVG, and EXR panoramas up to 500 MB.
         </p>
       </Dragger>
 

@@ -146,3 +146,12 @@
   background: #4096ff;
   color: #4096ff;
 }
+
+.smartnav-hotspot--route { width:52px; height:62px; color:#ff9e14; background:transparent; filter:drop-shadow(0 4px 8px rgba(82,43,0,.52)); }
+.smartnav-hotspot--route::before { content:''; position:absolute; z-index:-1; width:26px; height:26px; top:18px; border:2px solid rgba(255,186,56,.92); border-radius:50%; animation:smartnav-route-ring 1.7s ease-out infinite; }
+.smartnav-hotspot--route svg { position:relative; width:44px; height:44px; fill:currentColor; animation:smartnav-route-arrow 1.15s cubic-bezier(.4,0,.2,1) infinite; }
+.smartnav-hotspot--route:hover { background:transparent; color:#ffc15a; transform:translate(-50%,-100%) scale(1.08); }
+.smartnav-hotspot__next { position:absolute; top:-20px; padding:3px 8px; border:1px solid rgba(255,216,139,.55); border-radius:999px; background:linear-gradient(135deg,rgba(59,35,0,.94),rgba(20,32,49,.94)); color:#fff8e7; font-size:11px; font-weight:800; letter-spacing:.02em; line-height:1.2; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.34); }
+@keyframes smartnav-route-arrow { 0%,100% { transform:translateY(3px); } 50% { transform:translateY(-5px); } }
+@keyframes smartnav-route-ring { 0% { transform:scale(.65); opacity:.92; } 75%,100% { transform:scale(1.85); opacity:0; } }
+@media (prefers-reduced-motion: reduce) { .smartnav-hotspot--route::before, .smartnav-hotspot--route svg { animation:none; } }

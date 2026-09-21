@@ -46,7 +46,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((error, req, res, next) => {
     if (error instanceof require("multer").MulterError) {
-        return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 100 MB or smaller." : error.message });
+        return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 500 MB or smaller." : error.message });
     }
     if (error) return res.status(400).json({ success: false, message: error.message || "Upload failed." });
     next();

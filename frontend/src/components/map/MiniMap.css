@@ -6,6 +6,7 @@
 .mini-map__empty .anticon { font-size:32px; color:#1677ff; padding:10px; border-radius:50%; background:#eaf3ff; }
 .mini-map__routes { position:absolute; z-index:2; inset:0; width:100%; height:100%; pointer-events:none; filter:drop-shadow(0 1px 1px rgba(0,35,90,.3)); }
 .mini-map__routes line { stroke:#fff; stroke-width:1.25; stroke-dasharray:2.2 1.2; opacity:.88; }
+.mini-map__routes .mini-map__route--active { stroke:#ffb020; stroke-width:2.6; stroke-dasharray:none; opacity:1; filter:drop-shadow(0 0 2px rgba(121,67,0,.8)); }
 .mini-map__pin { position:absolute; z-index:3; transform:translate(-50%,-100%); border:0; background:transparent; color:#1967d2; cursor:pointer; padding:0; display:flex; flex-direction:column; align-items:center; transition:transform .18s ease, color .18s ease; filter:drop-shadow(0 3px 4px rgba(0,22,65,.38)); }
 .mini-map__pin .anticon { position:relative; z-index:1; width:29px; height:29px; display:grid; place-items:center; border:2px solid #fff; border-radius:50% 50% 50% 0; background:#1967d2; color:#fff; font-size:16px; line-height:1; transform:rotate(-45deg); box-shadow:0 3px 8px rgba(5,49,119,.36); }
 .mini-map__pin .anticon svg { transform:rotate(45deg); }
@@ -15,5 +16,9 @@
 .mini-map__pin--active { color:#e84a4f; transform:translate(-50%,-100%) scale(1.15); }
 .mini-map__pin--active .anticon { background:#e84a4f; animation:mini-map-pulse 1.6s ease-out infinite; }
 .mini-map__pin--active span { color:#a31d29; border-color:#ffc5c9; }
+.mini-map__pin--route:not(.mini-map__pin--active) .anticon { background:#f29b16; }
+.mini-map__pin--route:not(.mini-map__pin--active) span { color:#804c00; border-color:#ffdc9e; }
 .mini-map__heading { position:absolute; z-index:0; left:50%; bottom:19px; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-bottom:27px solid rgba(232,74,79,.8); transform:translateX(-50%) rotate(var(--heading)); transform-origin:50% 100%; filter:drop-shadow(0 1px 1px rgba(77,0,7,.35)); transition:transform .12s linear; }
+.mini-map__route-summary { position:absolute; z-index:4; left:9px; right:9px; bottom:9px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px; border:1px solid rgba(255,255,255,.62); border-radius:8px; background:rgba(7,25,51,.84); color:#fff; font-size:10px; font-weight:700; box-shadow:0 3px 10px rgba(0,0,0,.22); }
+.mini-map__route-summary button { border:0; border-radius:5px; padding:2px 6px; color:#14365d; background:#fff; font-size:10px; font-weight:700; cursor:pointer; }
 @keyframes mini-map-pulse { 50% { box-shadow:0 0 0 7px rgba(232,74,79,0),0 3px 8px rgba(5,49,119,.36); } 20% { box-shadow:0 0 0 4px rgba(232,74,79,.26),0 3px 8px rgba(5,49,119,.36); } }
