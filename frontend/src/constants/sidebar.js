@@ -14,6 +14,8 @@ import {
   BarChartOutlined,
   CloudUploadOutlined,
   SettingOutlined,
+  BlockOutlined,
+  CameraOutlined,
 } from '@ant-design/icons';
 import { ROUTES } from './routes';
 
@@ -51,6 +53,18 @@ export const SIDEBAR_GROUPS = [
         label: 'Map Editor',
         icon: EnvironmentOutlined,
         path: ROUTES.MAP,
+      },
+      {
+        key: 'floor-plan',
+        label: 'Floor Plan',
+        icon: BlockOutlined,
+        path: ROUTES.FLOOR_PLAN,
+      },
+      {
+        key: 'panorama',
+        label: 'Panoramic Viewer',
+        icon: CameraOutlined,
+        path: ROUTES.PANORAMA,
       },
     ],
   },

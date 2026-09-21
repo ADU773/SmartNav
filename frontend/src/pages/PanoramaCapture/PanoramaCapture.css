@@ -1,0 +1,57 @@
+.panorama-capture {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.panorama-capture--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.panorama-capture__done-icon {
+  color: var(--color-success);
+}
+
+.panorama-capture__header {
+  padding: var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.panorama-capture__body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.panorama-capture__instructions {
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.panorama-capture__input {
+  display: none;
+}
+
+.panorama-capture__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.panorama-capture__thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.panorama-capture__done {
+  margin-top: var(--space-4);
+}

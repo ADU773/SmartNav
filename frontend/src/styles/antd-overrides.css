@@ -25,7 +25,7 @@
   box-shadow: none !important;
 }
 
-.ant-btn-primary {
+.ant-btn-primary:not(:disabled) {
   background: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
 }

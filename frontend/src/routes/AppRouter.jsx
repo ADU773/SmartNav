@@ -17,6 +17,9 @@ const AssetManager = lazy(() => import('../pages/AssetManager'));
 const SceneBuilder = lazy(() => import('../pages/SceneBuilder'));
 const HotspotBuilder = lazy(() => import('../pages/HotspotBuilder'));
 const MapEditor = lazy(() => import('../pages/MapEditor'));
+const FloorPlan = lazy(() => import('../pages/FloorPlan'));
+const PanoramicViewer = lazy(() => import('../pages/PanoramicViewer'));
+const PanoramaCapture = lazy(() => import('../pages/PanoramaCapture'));
 const VirtualExperience = lazy(() => import('../pages/VirtualExperience'));
 const AIWorkspace = lazy(() => import('../pages/AIWorkspace'));
 const Analytics = lazy(() => import('../pages/Analytics'));
@@ -41,6 +44,17 @@ const router = createBrowserRouter([
     element: (
       <SuspenseWrapper>
         <ProjectSelection />
+      </SuspenseWrapper>
+    ),
+  },
+
+  /* ---- Panorama capture (standalone, phone-facing, no sidebar) ---- */
+  {
+    path: '/panorama-capture/:token',
+    errorElement: <ErrorBoundary />,
+    element: (
+      <SuspenseWrapper>
+        <PanoramaCapture />
       </SuspenseWrapper>
     ),
   },
@@ -109,6 +123,14 @@ const router = createBrowserRouter([
       {
         path: '/map',
         element: <SuspenseWrapper><MapEditor /></SuspenseWrapper>,
+      },
+      {
+        path: '/floor-plan',
+        element: <SuspenseWrapper><FloorPlan /></SuspenseWrapper>,
+      },
+      {
+        path: '/panorama',
+        element: <SuspenseWrapper><PanoramicViewer /></SuspenseWrapper>,
       },
       {
         path: '/experience',

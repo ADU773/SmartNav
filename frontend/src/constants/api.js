@@ -31,6 +31,12 @@ export const API_ENDPOINTS = {
   PUBLISHED_PROJECT: (token) => `/api/published/${token}`,
   VISION_DETECT: '/api/vision/detect',
 
+  /* ---- Panorama capture sessions ---- */
+  PANORAMA_SESSIONS: '/api/panorama/sessions',
+  PANORAMA_SESSION_BY_TOKEN: (token) => `/api/panorama/sessions/${token}`,
+  PANORAMA_SESSION_PHOTOS: (token) => `/api/panorama/sessions/${token}/photos`,
+  PANORAMA_SESSION_COMPLETE: (token) => `/api/panorama/sessions/${token}/complete`,
+
   /* ---- Auth (future) ---- */
   AUTH_LOGIN: '/api/auth/login',
   AUTH_LOGOUT: '/api/auth/logout',
