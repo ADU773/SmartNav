@@ -73,5 +73,16 @@
 
   .main-layout__footer {
     padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-1);
   }
+}
+
+.main-layout__mobile-drawer .ant-drawer-body {
+  padding: 0;
+  display: flex;
+}
+
+.main-layout__mobile-drawer .ant-drawer-header {
+  padding: var(--space-4);
 }

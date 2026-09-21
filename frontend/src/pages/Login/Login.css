@@ -9,18 +9,14 @@
   margin-bottom: var(--space-8);
 }
 
-.login__logo {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-xl);
-  background: var(--color-primary);
-  display: flex;
-  align-items: center;
+.login__brand .logo {
   justify-content: center;
-  margin: 0 auto var(--space-4);
-  color: white;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-4);
+}
+
+.login__brand .logo__mark {
+  margin: 0 auto;
+  border-radius: var(--radius-xl);
 }
 
 .login__title {

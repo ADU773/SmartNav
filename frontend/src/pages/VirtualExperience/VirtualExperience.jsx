@@ -5,11 +5,10 @@
 import { useProject } from "../../contexts/ProjectContext";
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Card, List, Tag, Button, Divider, Select, Alert } from 'antd';
+import { List, Tag, Button, Divider, Select, Alert } from 'antd';
 import {
   EyeOutlined,
   NodeIndexOutlined,
-  ExpandOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';

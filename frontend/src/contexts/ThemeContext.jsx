@@ -38,7 +38,8 @@ export function ThemeProvider({ children }) {
   const antdThemeConfig = {
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
-      colorPrimary: '#2563eb',
+      // Kept in sync with --color-primary in styles/variables.css for each theme.
+      colorPrimary: isDark ? '#3b82f6' : '#2563eb',
       borderRadius: 8,
       fontFamily:
         "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",

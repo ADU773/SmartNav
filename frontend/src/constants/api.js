@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
 
   /* ---- Upload ---- */
   UPLOAD: '/api/upload',
+  UPLOAD_BY_ID: (id) => `/api/upload/${id}`,
   UPLOADS_STATIC: '/uploads',
 
   /* ---- AI (future) ---- */

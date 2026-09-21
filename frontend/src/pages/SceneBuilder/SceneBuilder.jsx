@@ -38,12 +38,7 @@ export default function SceneBuilder() {
   const loadScenes = async () => {
     setLoading(true);
     try {
-      console.log(currentProject);
-      const result = await SceneService.getScenes(
-
-        currentProject._id
-
-      );
+      const result = await SceneService.getScenes(currentProject._id);
       if (result.success) {
         setScenes(result.data || []);
       }
@@ -55,39 +50,23 @@ export default function SceneBuilder() {
   };
 
   const loadAssets = async () => {
-
-  if (!currentProject) return;
-
-  try {
-
-    const result = await UploadService.getUploads(currentProject._id);
-
-    console.log("Assets API:", result);
-
-    if (result.success) {
-
-      console.log("Assets Loaded:", result.data);
-
-      setAssets(result.data);
-
-    }
-
-  } catch (err) {
-
-    console.error(err);
-
-  }
-
-};
-  useEffect(() => {
-
     if (!currentProject) return;
+    try {
+      const result = await UploadService.getUploads(currentProject._id);
+      if (result.success) {
+        setAssets(result.data);
+      }
+    } catch (err) {
+      error(MESSAGES.ASSET_LOAD_ERROR, err.message);
+    }
+  };
 
+  useEffect(() => {
+    if (!currentProject) return;
     loadScenes();
-
     loadAssets();
-
-}, [currentProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProject]);
 
   const projectScenes = useMemo(() => {
     let filtered = currentProject
@@ -187,17 +166,11 @@ export default function SceneBuilder() {
       </Spin>
 
       <SceneModal
-
         open={modalOpen}
-
         onClose={() => setModalOpen(false)}
-
         onSubmit={handleCreateScene}
-
         projectId={currentProject?._id}
-
         assets={assets}
-
       />
     </div>
   );

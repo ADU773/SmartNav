@@ -14,8 +14,6 @@ const UploadService = {
    * @param {function} [onProgress] - Progress callback (0-100)
    * @returns {Promise<object>} { success, data: { filename, path, ... } }
    */
-
-
   async uploadImage(file, projectId, onProgress) {
     if (!file || !projectId) throw new Error('An image and project are required.');
     const formData = new FormData();
@@ -38,28 +36,21 @@ const UploadService = {
   },
 
   async getUploads(projectId) {
-
-    const response = await apiClient.get(
-
-        API_ENDPOINTS.UPLOAD,
-
-        {
-
-            params:{
-
-                projectId
-
-            }
-
-        }
-
-    );
-
+    const response = await apiClient.get(API_ENDPOINTS.UPLOAD, {
+      params: { projectId },
+    });
     return response.data;
+  },
 
-},
+  /**
+   * Delete an uploaded asset by ID.
+   * @param {string} id
+   * @returns {Promise<object>} { success, message }
+   */
+  async deleteAsset(id) {
+    const response = await apiClient.delete(API_ENDPOINTS.UPLOAD_BY_ID(id));
+    return response.data;
+  },
 };
-
-
 
 export default UploadService;

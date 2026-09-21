@@ -3,53 +3,53 @@
  * Collapsible sidebar navigation with grouped menu items.
  */
 
-import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Tooltip } from 'antd';
+import { Menu } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { SIDEBAR_GROUPS } from '../../../constants/sidebar';
 import { useProject } from '../../../contexts/ProjectContext';
+import Logo from '../../common/Logo';
 import './Sidebar.css';
 
-export default function Sidebar({ collapsed, onCollapse }) {
+export default function Sidebar({ collapsed = false, onCollapse, mobile = false, onNavigate }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentProject } = useProject();
 
   const activeKey = location.pathname.split('/')[1] || 'dashboard';
+  const isCollapsed = mobile ? false : collapsed;
+
+  const goTo = (path) => {
+    navigate(path);
+    onNavigate?.();
+  };
 
   const menuItems = SIDEBAR_GROUPS.map((group) => ({
     key: group.key,
     type: 'group',
-    label: collapsed ? null : group.label,
+    label: isCollapsed ? null : group.label,
     children: group.items.map((item) => ({
       key: item.key,
       icon: <item.icon />,
       label: item.label,
-      onClick: () => navigate(item.path),
+      onClick: () => goTo(item.path),
     })),
   }));
 
   return (
-    <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
+    <aside className={`sidebar ${isCollapsed ? 'sidebar--collapsed' : ''} ${mobile ? 'sidebar--mobile' : ''}`}>
       {/* Brand */}
-      <div className="sidebar__brand" onClick={() => navigate('/')}>
-        <div className="sidebar__logo">
-          <span className="sidebar__logo-icon">◇</span>
+      {!mobile && (
+        <div className="sidebar__brand" onClick={() => goTo('/')}>
+          <Logo size={36} showText={!isCollapsed} subtitle="Navigation Platform" />
         </div>
-        {!collapsed && (
-          <div className="sidebar__brand-text">
-            <span className="sidebar__brand-name">SmartNav360</span>
-            <span className="sidebar__brand-sub">Navigation Platform</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Project Indicator */}
-      {currentProject && !collapsed && (
+      {currentProject && !isCollapsed && (
         <div className="sidebar__project">
           <div className="sidebar__project-avatar">
             {currentProject.name?.charAt(0)?.toUpperCase()}
@@ -67,21 +67,23 @@ export default function Sidebar({ collapsed, onCollapse }) {
           mode="inline"
           selectedKeys={[activeKey]}
           items={menuItems}
-          inlineCollapsed={collapsed}
+          inlineCollapsed={isCollapsed}
         />
       </div>
 
       {/* Collapse Toggle */}
-      <div className="sidebar__footer">
-        <button
-          className="sidebar__toggle"
-          onClick={() => onCollapse(!collapsed)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          {!collapsed && <span>Collapse</span>}
-        </button>
-      </div>
+      {!mobile && (
+        <div className="sidebar__footer">
+          <button
+            className="sidebar__toggle"
+            onClick={() => onCollapse(!collapsed)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

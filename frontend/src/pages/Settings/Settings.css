@@ -6,6 +6,16 @@
   border-color: var(--color-error-border) !important;
 }
 
+.settings__danger-title {
+  color: var(--color-error);
+}
+
+.settings__empty-note {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
 .settings__option {
   display: flex;
   align-items: flex-start;

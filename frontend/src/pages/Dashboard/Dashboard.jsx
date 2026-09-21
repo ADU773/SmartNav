@@ -4,56 +4,57 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Timeline, Tag } from 'antd';
-import {
-  CheckCircleOutlined,
-} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import { Card, Row, Col, List, Tag } from 'antd';
+import { CheckCircleFilled, ClockCircleOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { useProject } from '../../contexts/ProjectContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import SceneService from '../../services/scene.service';
+import { formatRelativeDate } from '../../utils/formatDate';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import DashboardCards from '../../components/dashboard/DashboardCards';
 import QuickActions from '../../components/dashboard/QuickActions';
+import EmptyState from '../../components/common/EmptyState';
 import './Dashboard.css';
 
 export default function Dashboard() {
   useDocumentTitle('Dashboard');
 
+  const navigate = useNavigate();
   const { currentProject, projects } = useProject();
   const [scenes, setScenes] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const result = await SceneService.getScenes();
-        if (result.success) {
-          setScenes(result.data || []);
-        }
-      } catch {
-        // Gracefully handle
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
+    if (!currentProject?._id) {
+      setScenes([]);
+      return;
+    }
+    SceneService.getScenes(currentProject._id)
+      .then((result) => setScenes(result.success ? result.data || [] : []))
+      .catch(() => setScenes([]));
+  }, [currentProject?._id]);
 
-  const projectScenes = currentProject
-    ? scenes.filter((s) => s.projectId === currentProject._id)
-    : scenes;
-
-  const totalConnections = projectScenes.reduce(
-    (acc, scene) => acc + (scene.hotspots?.length || 0),
-    0
-  );
+  const totalConnections = scenes.reduce((acc, scene) => acc + (scene.hotspots?.length || 0), 0);
+  const assetCount = scenes.filter((s) => s.image).length;
 
   const stats = {
     projects: projects.length,
-    scenes: projectScenes.length,
-    assets: projectScenes.filter((s) => s.image).length,
+    scenes: scenes.length,
+    assets: assetCount,
     connections: totalConnections,
   };
+
+  const recentScenes = [...scenes]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 5);
+
+  const checklist = [
+    { label: 'Upload panoramic assets', done: assetCount > 0, path: '/assets' },
+    { label: 'Create your first scene', done: scenes.length > 0, path: '/scenes' },
+    { label: 'Connect scenes with hotspots', done: totalConnections > 0, path: '/hotspots' },
+    { label: 'Preview the virtual experience', done: scenes.length > 0, path: '/experience' },
+    { label: 'Publish & share', done: false, path: '/deployment' },
+  ];
 
   return (
     <div className="dashboard">
@@ -62,7 +63,7 @@ export default function Dashboard() {
         description={
           currentProject
             ? `Overview for ${currentProject.name}`
-            : 'Welcome to SmartNav360'
+            : 'Select a project from the sidebar to see its overview.'
         }
       />
 
@@ -88,7 +89,7 @@ export default function Dashboard() {
                 </div>
                 <div className="dashboard__info-item">
                   <span className="dashboard__info-label">Scenes</span>
-                  <span className="dashboard__info-value">{projectScenes.length}</span>
+                  <span className="dashboard__info-value">{scenes.length}</span>
                 </div>
                 <div className="dashboard__info-item">
                   <span className="dashboard__info-label">Connections</span>
@@ -97,62 +98,54 @@ export default function Dashboard() {
               </div>
             </Card>
           )}
+
+          {/* Recent Scenes */}
+          <Card title="Recent Scenes" className="dashboard__card" style={{ marginTop: 16 }}>
+            {recentScenes.length > 0 ? (
+              <List
+                dataSource={recentScenes}
+                renderItem={(scene) => (
+                  <List.Item
+                    className="dashboard__recent-item"
+                    onClick={() => navigate('/scenes')}
+                  >
+                    <span className="dashboard__recent-name">
+                      <AppstoreOutlined /> {scene.name}
+                    </span>
+                    <span className="dashboard__recent-date">{formatRelativeDate(scene.createdAt)}</span>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <EmptyState
+                icon={AppstoreOutlined}
+                title="No scenes yet"
+                description={currentProject ? 'Create your first scene to see it here.' : 'Select a project to get started.'}
+              />
+            )}
+          </Card>
         </Col>
 
         <Col xs={24} lg={8}>
-          {/* Framework Status */}
-          <Card title="Framework Status" className="dashboard__card">
+          {/* Setup Checklist */}
+          <Card title="Setup Checklist" className="dashboard__card">
             <div className="dashboard__status-list">
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Project Management</span>
-                <Tag color="green">Active</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Scene Builder</span>
-                <Tag color="green">Active</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Asset Manager</span>
-                <Tag color="green">Active</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Marzipano Viewer</span>
-                <Tag color="green">Active</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Gemini AI</span>
-                <Tag color="blue">Key optional</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Analytics</span>
-                <Tag color="green">Active</Tag>
-              </div>
-              <div className="dashboard__status-item">
-                <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
-                <span>Deployment</span>
-                <Tag color="green">Active</Tag>
-              </div>
+              {checklist.map((step) => (
+                <div
+                  key={step.label}
+                  className="dashboard__status-item dashboard__status-item--clickable"
+                  onClick={() => navigate(step.path)}
+                >
+                  {step.done ? (
+                    <CheckCircleFilled style={{ color: 'var(--color-success)' }} />
+                  ) : (
+                    <ClockCircleOutlined style={{ color: 'var(--color-text-tertiary)' }} />
+                  )}
+                  <span>{step.label}</span>
+                  <Tag color={step.done ? 'green' : 'default'}>{step.done ? 'Done' : 'To do'}</Tag>
+                </div>
+              ))}
             </div>
-          </Card>
-
-          {/* Upcoming */}
-          <Card title="Feature Delivery" className="dashboard__card" style={{ marginTop: 16 }}>
-            <Timeline
-              items={[
-                { children: 'Marzipano 360° Viewer Integration', color: 'green' },
-                { children: 'Gemini AI Navigation Assistant', color: 'green' },
-                { children: 'YOLO Computer Vision Detection service integration', color: 'green' },
-                { children: 'Graph-Based Shortest Path Navigation', color: 'green' },
-                { children: 'Publishing, share links, and export', color: 'green' },
-                { children: 'Visitor Analytics Dashboard', color: 'green' },
-              ]}
-            />
           </Card>
         </Col>
       </Row>

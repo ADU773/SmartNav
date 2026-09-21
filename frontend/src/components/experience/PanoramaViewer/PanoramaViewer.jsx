@@ -24,6 +24,7 @@ export default function PanoramaViewer({
   onNavigate,
   editMode = false,
   onPanoramaClick,
+  onHotspotSelect,
   miniMap,
   navigationTargetId,
   navigationTargetName,
@@ -146,11 +147,11 @@ export default function PanoramaViewer({
     // Create Hotspots
     // -----------------------------
     if (scene.hotspots && scene.hotspots.length > 0) {
-      scene.hotspots.forEach((hotspot) => {
+      scene.hotspots.forEach((hotspot, hotspotIndex) => {
         const element = document.createElement("div");
         const isNextRouteStop = String(hotspot.targetScene) === String(navigationTargetId);
 
-        element.className = `smartnav-hotspot ${isNextRouteStop ? "smartnav-hotspot--route" : ""}`;
+        element.className = `smartnav-hotspot ${isNextRouteStop ? "smartnav-hotspot--route" : ""} ${editMode ? "smartnav-hotspot--edit" : ""}`;
 
         // Inline SVG keeps the navigation location marker crisp at every zoom level.
         element.innerHTML = isNextRouteStop
@@ -158,12 +159,15 @@ export default function PanoramaViewer({
           : `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" /></svg>`;
 
         const destination = hotspot.label || "location";
-        element.title = isNextRouteStop ? `Next stop: ${navigationTargetName || destination}` : `Go to ${destination}`;
+        element.title = editMode ? `Connection to ${destination} — click to remove` : (isNextRouteStop ? `Next stop: ${navigationTargetName || destination}` : `Go to ${destination}`);
         element.setAttribute("role", "button");
-        element.setAttribute("aria-label", `Navigate to ${destination}`);
+        element.setAttribute("aria-label", editMode ? `Remove connection to ${destination}` : `Navigate to ${destination}`);
 
-        element.onclick = () => {
-          if (onNavigate) {
+        element.onclick = (event) => {
+          event.stopPropagation();
+          if (editMode) {
+            onHotspotSelect?.(hotspot, hotspotIndex);
+          } else if (onNavigate) {
             onNavigate(hotspot.targetScene);
           }
         };
@@ -183,10 +187,10 @@ export default function PanoramaViewer({
         mountRef.current.innerHTML = "";
       }
     };
-  }, [scene, onNavigate, navigationTargetId, navigationTargetName]);
+  }, [scene, onNavigate, editMode, onHotspotSelect, navigationTargetId, navigationTargetName]);
 
   return (
-    <div ref={viewerContainerRef} className="panorama-viewer">
+    <div ref={viewerContainerRef} className={`panorama-viewer ${editMode ? 'panorama-viewer--edit' : ''}`}>
       {/* Marzipano Mount */}
       <div
         ref={mountRef}

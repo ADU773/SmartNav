@@ -4,7 +4,9 @@
  */
 
 import { Modal, Form, Select, Input, InputNumber } from 'antd';
+import { AimOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { useState } from 'react';
+import './HotspotModal.css';
 
 export default function HotspotModal({
   open,
@@ -42,9 +44,17 @@ export default function HotspotModal({
   const pitch = Number.isFinite(coordinates?.pitch) ? coordinates.pitch : 0;
   const hasSelectedPosition = Number.isFinite(coordinates?.yaw) && Number.isFinite(coordinates?.pitch);
 
+  // Map yaw (-PI..PI) onto a 360° compass dial for a quick visual sanity-check of the pin's position.
+  const compassAngle = (yaw * 180) / Math.PI;
+
   return (
     <Modal
-      title="Connect Scenes"
+      title={
+        <span>
+          <EnvironmentOutlined style={{ color: 'var(--color-primary)', marginRight: 8 }} />
+          Connect Scenes
+        </span>
+      }
       open={open}
       onOk={handleSubmit}
       onCancel={onClose}
@@ -52,7 +62,7 @@ export default function HotspotModal({
       confirmLoading={loading}
       destroyOnHidden
       centered
-      width={520}
+      width={540}
     >
       <Form
         form={form}
@@ -61,45 +71,41 @@ export default function HotspotModal({
         style={{ marginTop: 16 }}
         initialValues={{ distance: 0 }}
       >
+        <div className={`hotspot-modal__position ${hasSelectedPosition ? 'is-set' : 'is-default'}`}>
+          <div className="hotspot-modal__compass" style={{ '--pin-angle': `${compassAngle}deg` }}>
+            <div className="hotspot-modal__compass-pin">
+              <AimOutlined />
+            </div>
+          </div>
+          <div className="hotspot-modal__position-info">
+            <strong>{hasSelectedPosition ? 'Pin placed on panorama' : 'No pin placed yet'}</strong>
+            <div className="hotspot-modal__position-coords">
+              <span>Yaw {yaw.toFixed(2)}</span>
+              <span>Pitch {pitch.toFixed(2)}</span>
+            </div>
+            {!hasSelectedPosition && (
+              <small>Close this dialog and click the panorama to drop a precise pin, or continue with the center point.</small>
+            )}
+          </div>
+        </div>
 
         <Form.Item
           name="targetSceneId"
-          label="Target Scene"
-          rules={[{ required: true, message: 'Select the target scene' }]}
+          label="Leads to"
+          rules={[{ required: true, message: 'Select the destination scene' }]}
         >
           <Select
-            placeholder="Select target scene"
+            placeholder="Select destination scene"
             options={sceneOptions}
             showSearch
             optionFilterProp="label"
           />
         </Form.Item>
 
-        <Form.Item name="label" label="Connection Label">
-          <Input placeholder="e.g. Go to Lobby, Enter Room 101" />
-        </Form.Item>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-
-          <div
-            style={{
-              background: "#f5f5f5",
-              padding: 12,
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          >
-            <strong>{hasSelectedPosition ? 'Selected Position' : 'Default Position'}</strong>
-
-            <div>
-              Yaw: {yaw.toFixed(3)}
-            </div>
-
-            <div>
-              Pitch: {pitch.toFixed(3)}
-            </div>
-            {!hasSelectedPosition && <small>Click the panorama to place this hotspot precisely.</small>}
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+          <Form.Item name="label" label="Connection Label">
+            <Input placeholder="e.g. Go to Lobby, Enter Room 101" />
+          </Form.Item>
 
           <Form.Item name="distance" label="Distance (m)">
             <InputNumber style={{ width: '100%' }} min={0} />
