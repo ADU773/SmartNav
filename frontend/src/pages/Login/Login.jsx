@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { MESSAGES } from '../../constants/messages';
+import Logo from '../../components/common/Logo';
 import './Login.css';
 
 export default function Login() {
@@ -41,9 +42,7 @@ export default function Login() {
   return (
     <div className="login">
       <div className="login__brand">
-        <div className="login__logo">
-          <span>◇</span>
-        </div>
+        <Logo size={56} showText={false} />
         <h1 className="login__title">SmartNav360</h1>
         <p className="login__subtitle">Sign in to your account</p>
       </div>

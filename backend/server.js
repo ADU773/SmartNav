@@ -11,6 +11,7 @@ const projectRoutes = require("./routes/projectRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const featureRoutes = require("./routes/featureRoutes");
 const visionRoutes = require("./routes/visionRoutes");
+const panoramaRoutes = require("./routes/panoramaRoutes");
 
 const app = express();
 
@@ -42,11 +43,12 @@ app.use("/api/scenes", sceneRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api", featureRoutes);
 app.use("/api/vision", visionRoutes);
+app.use("/api/panorama", panoramaRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use((error, req, res, next) => {
     if (error instanceof require("multer").MulterError) {
-        return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 100 MB or smaller." : error.message });
+        return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 500 MB or smaller." : error.message });
     }
     if (error) return res.status(400).json({ success: false, message: error.message || "Upload failed." });
     next();

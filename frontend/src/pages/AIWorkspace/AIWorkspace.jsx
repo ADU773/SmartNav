@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { Card, Row, Col, Tag } from 'antd';
-import { RobotOutlined, CompassOutlined, SearchOutlined, BulbOutlined } from '@ant-design/icons';
+import { CompassOutlined, SearchOutlined, BulbOutlined } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import AIService from '../../services/ai.service';
 import ChatWindow from '../../components/ai/ChatWindow';
@@ -70,7 +70,7 @@ export default function AIWorkspace() {
               <div>
                 <h4>Smart Search</h4>
                 <p>Natural language search across scenes</p>
-                <Tag color="blue">Context aware</Tag>
+                <Tag>Context aware</Tag>
               </div>
             </div>
             <div className="ai-workspace__capability">
@@ -78,7 +78,7 @@ export default function AIWorkspace() {
               <div>
                 <h4>Metadata Generation</h4>
                 <p>Auto-generate scene descriptions</p>
-                <Tag color="blue">Ready with Gemini key</Tag>
+                <Tag>Ready with Gemini key</Tag>
               </div>
             </div>
           </Card>
@@ -87,7 +87,7 @@ export default function AIWorkspace() {
           <Card title="Integration Status" style={{ marginTop: 16 }}>
             <div className="ai-workspace__status">
               <span>Gemini API</span>
-              <Tag color={currentProject ? 'green' : 'orange'}>{currentProject ? 'Connected' : 'Choose a project'}</Tag>
+              <Tag color={currentProject ? 'green' : 'default'}>{currentProject ? 'Project selected' : 'Choose a project'}</Tag>
             </div>
             <div className="ai-workspace__status">
               <span>Navigation Engine</span>
@@ -95,7 +95,7 @@ export default function AIWorkspace() {
             </div>
             <div className="ai-workspace__status">
               <span>Computer Vision</span>
-              <Tag color="blue">Service-ready</Tag>
+              <Tag>Service-ready</Tag>
             </div>
           </Card>
         </Col>

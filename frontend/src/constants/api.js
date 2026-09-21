@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
 
   /* ---- Upload ---- */
   UPLOAD: '/api/upload',
+  UPLOAD_BY_ID: (id) => `/api/upload/${id}`,
   UPLOADS_STATIC: '/uploads',
 
   /* ---- AI (future) ---- */
@@ -29,6 +30,12 @@ export const API_ENDPOINTS = {
   EXPORT_PROJECT: (id) => `/api/projects/${id}/export`,
   PUBLISHED_PROJECT: (token) => `/api/published/${token}`,
   VISION_DETECT: '/api/vision/detect',
+
+  /* ---- Panorama capture sessions ---- */
+  PANORAMA_SESSIONS: '/api/panorama/sessions',
+  PANORAMA_SESSION_BY_TOKEN: (token) => `/api/panorama/sessions/${token}`,
+  PANORAMA_SESSION_PHOTOS: (token) => `/api/panorama/sessions/${token}/photos`,
+  PANORAMA_SESSION_COMPLETE: (token) => `/api/panorama/sessions/${token}/complete`,
 
   /* ---- Auth (future) ---- */
   AUTH_LOGIN: '/api/auth/login',

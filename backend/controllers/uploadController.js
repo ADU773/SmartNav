@@ -1,8 +1,10 @@
 const fs = require("fs/promises");
 const mongoose = require("mongoose");
 const Asset = require("../models/Asset");
-const { withProject, sendError } = require("../services/integrity");
+const PendingFileDeletion = require("../models/PendingFileDeletion");
+const { withProject, requireId, fail, sendError } = require("../services/integrity");
 const { validateImage } = require("../middleware/uploadMiddleware");
+const { processPendingFiles } = require("../services/fileCleanup");
 
 const uploadImage = async (req, res) => {
     let asset;
@@ -56,4 +58,24 @@ const getUploads = async (req, res) => {
     }
 };
 
-module.exports = { uploadImage, getUploads };
+const deleteAsset = async (req, res) => {
+    try {
+        requireId(req.params.id, "asset ID");
+        const owner = await Asset.findById(req.params.id).select("projectId").lean();
+        if (!owner) return res.status(404).json({ success: false, message: "Asset not found." });
+        await withProject(owner.projectId, async (project, session) => {
+            const asset = await Asset.findOne({ _id: req.params.id, projectId: project._id }).session(session);
+            if (!asset) fail(404, "Asset not found.");
+            // The file itself is only removed once nothing else references it
+            // (see services/fileCleanup.js), so a shared/legacy file is kept.
+            await PendingFileDeletion.create([{ filename: asset.filename }], { session });
+            await Asset.deleteOne({ _id: asset._id }, { session });
+        });
+        let cleanupPending = false;
+        try { await processPendingFiles(); cleanupPending = !!await PendingFileDeletion.exists({}); }
+        catch (error) { cleanupPending = true; console.error("Upload cleanup deferred:", error.message); }
+        res.json({ success: true, message: "Asset deleted successfully", ...(cleanupPending ? { cleanupPending: true } : {}) });
+    } catch (error) { sendError(res, error); }
+};
+
+module.exports = { uploadImage, getUploads, deleteAsset };

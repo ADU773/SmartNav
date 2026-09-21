@@ -21,7 +21,7 @@ const AIService = {
    * Search navigation using AI.
    * Future: apiClient.post(API_ENDPOINTS.AI_SEARCH, { query })
    */
-  async searchNavigation(query) {
+  async searchNavigation(_query) {
     return {
       success: true,
       data: {

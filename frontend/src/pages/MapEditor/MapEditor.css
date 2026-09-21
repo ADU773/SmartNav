@@ -1,4 +1,32 @@
-.map-editor__grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:16px; }
-.map-editor__scene { cursor:pointer; border-radius:6px; padding:10px !important; }
-.map-editor__scene--active { background:#e6f4ff; }
-@media (max-width:900px) { .map-editor__grid { grid-template-columns:1fr; } }
+.map-editor__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+
+.map-editor__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.map-editor__scene {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 10px !important;
+  transition: background var(--transition-fast);
+}
+
+.map-editor__scene:hover {
+  background: var(--color-bg-hover);
+}
+
+.map-editor__scene--active {
+  background: var(--color-primary-light);
+}
+
+@media (max-width: 900px) {
+  .map-editor__grid {
+    grid-template-columns: 1fr;
+  }
+}

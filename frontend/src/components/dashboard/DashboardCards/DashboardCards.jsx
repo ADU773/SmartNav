@@ -13,10 +13,10 @@ import {
 import './DashboardCards.css';
 
 const STAT_CONFIG = [
-  { key: 'projects', label: 'Projects', icon: AppstoreOutlined, color: '#2563eb' },
-  { key: 'scenes', label: 'Scenes', icon: EyeOutlined, color: '#16a34a' },
-  { key: 'assets', label: 'Assets', icon: PictureOutlined, color: '#d97706' },
-  { key: 'connections', label: 'Connections', icon: NodeIndexOutlined, color: '#7c3aed' },
+  { key: 'projects', label: 'Projects', icon: AppstoreOutlined, colorVar: '--color-primary', bgVar: '--color-primary-light' },
+  { key: 'scenes', label: 'Scenes', icon: EyeOutlined, colorVar: '--color-success', bgVar: '--color-success-light' },
+  { key: 'assets', label: 'Assets', icon: PictureOutlined, colorVar: '--color-warning', bgVar: '--color-warning-light' },
+  { key: 'connections', label: 'Connections', icon: NodeIndexOutlined, colorVar: '--color-accent-purple', bgVar: '--color-accent-purple-light' },
 ];
 
 export default function DashboardCards({ stats = {} }) {
@@ -29,7 +29,7 @@ export default function DashboardCards({ stats = {} }) {
               <span className="stat-card__label">{item.label}</span>
               <div
                 className="stat-card__icon"
-                style={{ background: `${item.color}12`, color: item.color }}
+                style={{ background: `var(${item.bgVar})`, color: `var(${item.colorVar})` }}
               >
                 <item.icon />
               </div>

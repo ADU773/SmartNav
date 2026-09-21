@@ -1,33 +1,105 @@
-.hotspot-builder__graph-card {
-  min-height: 300px;
+/* ---- Scene strip: horizontal Street-View-style scene switcher ---- */
+.hotspot-builder__scene-strip {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding: var(--space-1) var(--space-1) var(--space-4);
+  margin-bottom: var(--space-1);
+  scrollbar-width: thin;
 }
 
-.hotspot-builder__graph-placeholder {
+.hotspot-builder__scene-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  text-align: left;
+}
+
+.hotspot-builder__scene-chip:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-bg-hover);
+}
+
+.hotspot-builder__scene-chip.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary-border);
+}
+
+.hotspot-builder__scene-chip-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-subtle);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.hotspot-builder__scene-chip-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: var(--space-8);
+  gap: 2px;
+  min-width: 0;
 }
 
-.hotspot-builder__graph-icon {
-  font-size: 40px;
-  color: var(--color-text-tertiary);
-  opacity: 0.4;
-  margin-bottom: var(--space-4);
-}
-
-.hotspot-builder__graph-placeholder h4 {
-  font-size: var(--font-size-md);
-  margin-bottom: var(--space-2);
-}
-
-.hotspot-builder__graph-placeholder p {
+.hotspot-builder__scene-chip-name {
   font-size: var(--font-size-sm);
-  max-width: 280px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
 }
 
+.hotspot-builder__scene-chip-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hotspot-builder__scene-chip.is-active .hotspot-builder__scene-chip-count {
+  color: var(--color-primary);
+}
+
+/* ---- Panorama editor card ---- */
+.hotspot-builder__viewer-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hotspot-builder__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-info-light);
+  border: 1px solid var(--color-info-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.hotspot-builder__hint .anticon {
+  color: var(--color-primary);
+}
+
+.hotspot-builder__viewer-card .panorama-viewer {
+  min-height: 560px;
+}
+
+/* ---- Stats & table cards ---- */
 .hotspot-builder__stat {
   display: flex;
   align-items: center;
@@ -49,4 +121,14 @@
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+}
+
+.hotspot-builder__table-card .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  .hotspot-builder__viewer-card .panorama-viewer {
+    min-height: 420px;
+  }
 }

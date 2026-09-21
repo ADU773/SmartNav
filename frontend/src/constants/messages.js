@@ -9,6 +9,8 @@ export const MESSAGES = {
   PROJECT_UPDATED: 'Project updated successfully',
   PROJECT_DELETED: 'Project deleted successfully',
   PROJECT_CREATE_ERROR: 'Failed to create project',
+  PROJECT_UPDATE_ERROR: 'Failed to update project',
+  PROJECT_DELETE_ERROR: 'Failed to delete project',
   PROJECT_LOAD_ERROR: 'Failed to load projects',
 
   /* ---- Scene ---- */
@@ -23,11 +25,15 @@ export const MESSAGES = {
   UPLOAD_SUCCESS: 'File uploaded successfully',
   UPLOAD_ERROR: 'Failed to upload file',
   UPLOAD_PROGRESS: 'Uploading...',
+  ASSET_LOAD_ERROR: 'Failed to load assets',
+  ASSET_DELETED: 'Asset deleted successfully',
+  ASSET_DELETE_ERROR: 'Failed to delete asset',
 
   /* ---- Connection ---- */
   CONNECTION_ADDED: 'Scenes connected successfully',
   CONNECTION_REMOVED: 'Connection removed successfully',
   CONNECTION_ERROR: 'Failed to connect scenes',
+  CONNECTION_DELETE_ERROR: 'Failed to remove connection',
   CONNECTION_EXISTS: 'This connection already exists',
 
   /* ---- Auth ---- */

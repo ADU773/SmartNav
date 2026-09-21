@@ -6,11 +6,12 @@
 import { Table, Button, Tag, Tooltip, Space } from 'antd';
 import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 
-export default function HotspotTable({ scenes = [], loading, onDelete }) {
+export default function HotspotTable({ scenes = [], loading, onDelete, onLocate }) {
   // Flatten hotspots from all scenes into a table-friendly format
   const connections = scenes.flatMap((scene) =>
     (scene.hotspots || []).map((hotspot, index) => ({
       key: `${scene._id}-${index}`,
+      hotspotIndex: index,
       sourceSceneId: scene._id,
       sourceSceneName: scene.name,
       targetSceneId: hotspot.targetScene,
@@ -65,17 +66,27 @@ export default function HotspotTable({ scenes = [], loading, onDelete }) {
     {
       title: '',
       key: 'actions',
-      width: 60,
+      width: 90,
       render: (_, record) => (
-        <Tooltip title="Remove connection">
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            size="small"
-            onClick={() => onDelete?.(record)}
-          />
-        </Tooltip>
+        <Space size="small">
+          <Tooltip title="View in editor">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => onLocate?.(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Remove connection">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              size="small"
+              onClick={() => onDelete?.(record)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];

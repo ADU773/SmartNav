@@ -58,7 +58,7 @@ export default function SceneCard({ scene, onView, onDelete }) {
         </span>
       </div>
       {hotspotCount > 0 && (
-        <Tag color="blue" className="scene-card__tag">Connected</Tag>
+        <Tag color="green" className="scene-card__tag">Connected</Tag>
       )}
     </Card>
   );

@@ -1,29 +1,3 @@
 .deployment__card {
-  height: 100%;
-  text-align: center;
-  padding: var(--space-4);
-}
-
-.deployment__card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
-.deployment__card-icon {
-  font-size: 28px;
-  color: var(--color-primary);
-}
-
-.deployment__card-title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: var(--space-2);
-  text-align: left;
-}
-
-.deployment__card-desc {
-  font-size: var(--font-size-sm);
-  text-align: left;
+  max-width: 640px;
 }

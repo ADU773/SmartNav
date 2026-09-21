@@ -19,18 +19,8 @@
   margin: 0 auto;
 }
 
-.project-selection__logo {
-  width: 48px;
-  height: 48px;
+.project-selection__brand .logo__mark {
   border-radius: var(--radius-lg);
-  background: var(--color-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  flex-shrink: 0;
 }
 
 .project-selection__title {

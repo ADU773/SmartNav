@@ -4,8 +4,10 @@ import './MiniMap.css';
 
 const positionFor = (scene, index) => scene.mapPosition || { x: 20 + ((index * 23) % 60), y: 25 + ((index * 31) % 50) };
 
-export default function MiniMap({ floorPlan, scenes = [], activeSceneId, onSelect, interactive = false, onPlace, heading = 0 }) {
+export default function MiniMap({ floorPlan, scenes = [], activeSceneId, onSelect, interactive = false, onPlace, heading = 0, routePath = [], routeDistance, onClearRoute }) {
   const byId = new Map(scenes.map((scene, index) => [String(scene._id), { ...scene, position: positionFor(scene, index) }]));
+  const routeIds = routePath.map(String);
+  const isRouteEdge = (sourceId, targetId) => routeIds.some((id, index) => id === String(sourceId) && routeIds[index + 1] === String(targetId));
   const handleMapClick = (event) => {
     if (!interactive || !onPlace) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -16,12 +18,13 @@ export default function MiniMap({ floorPlan, scenes = [], activeSceneId, onSelec
     <svg className="mini-map__routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       {scenes.flatMap((scene, index) => (scene.hotspots || []).map((spot, routeIndex) => {
         const source = positionFor(scene, index); const target = byId.get(String(spot.targetScene))?.position;
-        return target ? <line key={`${scene._id}-${routeIndex}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} /> : null;
+        return target ? <line key={`${scene._id}-${routeIndex}`} className={isRouteEdge(scene._id, spot.targetScene) ? 'mini-map__route--active' : ''} x1={source.x} y1={source.y} x2={target.x} y2={target.y} /> : null;
       }))}
     </svg>
     {scenes.map((scene, index) => {
       const position = positionFor(scene, index); const active = String(scene._id) === String(activeSceneId);
-      return <button key={scene._id} type="button" title={scene.name} aria-label={`${scene.name}${active ? ', current location' : ''}`} onClick={(event) => { event.stopPropagation(); onSelect?.(scene._id); }} className={`mini-map__pin ${active ? 'mini-map__pin--active' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%` }}><EnvironmentOutlined />{active && <i className="mini-map__heading" style={{ '--heading': `${heading * 180 / Math.PI}deg` }} aria-hidden="true" />}<span>{scene.name}</span></button>;
+      return <button key={scene._id} type="button" title={scene.name} aria-label={`${scene.name}${active ? ', current location' : ''}`} onClick={(event) => { event.stopPropagation(); onSelect?.(scene._id); }} className={`mini-map__pin ${active ? 'mini-map__pin--active' : ''} ${routeIds.includes(String(scene._id)) ? 'mini-map__pin--route' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%` }}><EnvironmentOutlined />{active && <i className="mini-map__heading" style={{ '--heading': `${heading * 180 / Math.PI}deg` }} aria-hidden="true" />}<span>{scene.name}</span></button>;
     })}
+    {routeIds.length > 1 && <div className="mini-map__route-summary"><span>Route · {routeDistance} m</span><button type="button" onClick={(event) => { event.stopPropagation(); onClearRoute?.(); }}>Clear</button></div>}
   </div>;
 }

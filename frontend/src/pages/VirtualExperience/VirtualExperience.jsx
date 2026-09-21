@@ -5,11 +5,10 @@
 import { useProject } from "../../contexts/ProjectContext";
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Card, List, Tag, Button, Divider, Select, Alert } from 'antd';
+import { List, Tag, Button, Divider, Select, Alert } from 'antd';
 import {
   EyeOutlined,
   NodeIndexOutlined,
-  ExpandOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -38,6 +37,10 @@ export default function VirtualExperience() {
   const shareToken = new URLSearchParams(location.search).get('share');
   const activeProject = sharedProject || currentProject;
   const floorPlan = sharedProject?.floorPlan || projectDetails?.floorPlan || currentProject?.floorPlan;
+  const routeIds = route?.path?.map((scene) => String(scene._id)) || [];
+  const currentRouteIndex = routeIds.indexOf(String(selectedScene?._id));
+  const nextRouteSceneId = currentRouteIndex >= 0 ? routeIds[currentRouteIndex + 1] : undefined;
+  const nextRouteScene = scenes.find((scene) => String(scene._id) === nextRouteSceneId);
 
   const sessionId = (() => {
     const key = 'smartnav360_session_id';
@@ -91,10 +94,17 @@ export default function VirtualExperience() {
     ProjectService.getProject(currentProject._id).then((result) => setProjectDetails(result.data)).catch(() => {});
   }, [currentProject?._id, shareToken]);
 
-  const findRoute = async () => {
-    if (!selectedScene?._id || !routeTarget) return;
-    try { const result = await AIService.getNavigationPath(activeProject._id, selectedScene._id, routeTarget); setRoute(result.data); } catch (error) { setRoute({ error: error.message || 'No route found.' }); }
+  const findRoute = async (destinationId = routeTarget) => {
+    if (!selectedScene?._id || !destinationId || destinationId === selectedScene._id) return;
+    setRouteTarget(destinationId);
+    try {
+      const result = await AIService.getNavigationPath(activeProject._id, selectedScene._id, destinationId);
+      setRoute({ ...result.data, destinationId });
+    } catch (error) { setRoute({ error: error.message || 'No route found.', destinationId }); }
   };
+
+  const clearRoute = () => { setRoute(null); setRouteTarget(undefined); };
+  const chooseMapDestination = (sceneId) => findRoute(sceneId);
 
   const detectObjects = async () => {
     if (!selectedScene?._id) return;
@@ -132,14 +142,14 @@ export default function VirtualExperience() {
             <List.Item
               className={`virtual-experience__scene-item ${selectedScene?._id === scene._id ? 'virtual-experience__scene-item--active' : ''
                 }`}
-              onClick={() => setSelectedScene(scene)}
+              onClick={() => handleNavigate(scene._id)}
             >
               <div className="virtual-experience__scene-name">
                 <EyeOutlined />
                 <span>{scene.name}</span>
               </div>
               {scene.hotspots?.length > 0 && (
-                <Tag color="blue" className="virtual-experience__scene-tag">
+                <Tag className="virtual-experience__scene-tag">
                   {scene.hotspots.length}
                 </Tag>
               )}
@@ -153,7 +163,9 @@ export default function VirtualExperience() {
         <PanoramaViewer
           scene={selectedScene}
           onNavigate={handleNavigate}
-          miniMap={{ floorPlan, scenes, activeSceneId: selectedScene?._id, onSelect: handleNavigate }}
+          navigationTargetId={nextRouteSceneId}
+          navigationTargetName={nextRouteScene?.name}
+          miniMap={{ floorPlan, scenes, activeSceneId: selectedScene?._id, onSelect: chooseMapDestination, routePath: routeIds, routeDistance: route?.distance, onClearRoute: clearRoute }}
         />
       </main>
 
@@ -175,7 +187,7 @@ export default function VirtualExperience() {
             <div className="virtual-experience__info-section">
               <h4><EyeOutlined /> YOLO object detection</h4>
               <Button size="small" loading={detecting} disabled={!selectedScene.image} onClick={detectObjects}>Detect objects</Button>
-              <div style={{ marginTop: 8 }}>{detections.map((label) => <Tag key={label} color="purple">{label}</Tag>)}</div>
+              <div style={{ marginTop: 8 }}>{detections.map((label) => <Tag key={label}>{label}</Tag>)}</div>
               {!selectedScene.image && <p className="virtual-experience__no-data">Add a panorama image before running detection.</p>}
             </div>
 
@@ -214,9 +226,10 @@ export default function VirtualExperience() {
             <div className="virtual-experience__info-section">
               <h4><InfoCircleOutlined /> Shortest path</h4>
               <Select size="small" style={{ width: '100%', marginBottom: 8 }} placeholder="Choose destination" value={routeTarget} onChange={setRouteTarget} options={scenes.filter((scene) => scene._id !== selectedScene._id).map((scene) => ({ value: scene._id, label: scene.name }))} />
-              <Button size="small" type="primary" disabled={!routeTarget} onClick={findRoute}>Find route</Button>
+              <Button size="small" type="primary" disabled={!routeTarget} onClick={() => findRoute()}>Find route</Button>
+              {route?.path && <Button size="small" style={{ marginLeft: 8 }} onClick={clearRoute}>Clear route</Button>}
               {route?.error && <Alert style={{ marginTop: 8 }} type="warning" showIcon message={route.error} />}
-              {route?.path && <p className="virtual-experience__no-data" style={{ marginTop: 8 }}>Route: {route.path.map((scene) => scene.name).join(' → ')} ({route.distance} step{route.distance === 1 ? '' : 's'})</p>}
+              {route?.path && <p className="virtual-experience__no-data" style={{ marginTop: 8 }}>Route: {route.path.map((scene) => scene.name).join(' → ')} · {route.distance} m{nextRouteScene ? ` · Next: ${nextRouteScene.name}` : ' · Destination reached'}</p>}
             </div>
           </div>
         ) : (

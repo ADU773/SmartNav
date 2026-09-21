@@ -17,6 +17,7 @@ import ProjectCard from '../../components/project/ProjectCard';
 import ProjectModal from '../../components/project/ProjectModal';
 import EmptyState from '../../components/common/EmptyState';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Logo from '../../components/common/Logo';
 import './ProjectSelection.css';
 
 export default function ProjectSelection() {
@@ -69,9 +70,7 @@ export default function ProjectSelection() {
       {/* Header */}
       <header className="project-selection__header">
         <div className="project-selection__brand">
-          <div className="project-selection__logo">
-            <span>◇</span>
-          </div>
+          <Logo size={48} showText={false} />
           <div>
             <h1 className="project-selection__title">SmartNav360</h1>
             <p className="project-selection__subtitle">
