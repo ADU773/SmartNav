@@ -6,6 +6,7 @@
 import { Modal, Form, Select, Input, InputNumber } from 'antd';
 import { AimOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { useState } from 'react';
+import { ACCESS_MODES, DEFAULT_ACCESS_MODE } from '../../../constants/access';
 import './HotspotModal.css';
 
 export default function HotspotModal({
@@ -69,7 +70,7 @@ export default function HotspotModal({
         layout="vertical"
         requiredMark="optional"
         style={{ marginTop: 16 }}
-        initialValues={{ distance: 0 }}
+        initialValues={{ distance: 0, access: DEFAULT_ACCESS_MODE }}
       >
         <div className={`hotspot-modal__position ${hasSelectedPosition ? 'is-set' : 'is-default'}`}>
           <div className="hotspot-modal__compass" style={{ '--pin-angle': `${compassAngle}deg` }}>
@@ -111,6 +112,14 @@ export default function HotspotModal({
             <InputNumber style={{ width: '100%' }} min={0} />
           </Form.Item>
         </div>
+
+        <Form.Item
+          name="access"
+          label="How is this traversed?"
+          extra="The route finder weights each type, and can exclude one entirely — that is what makes a step-free route possible."
+        >
+          <Select options={ACCESS_MODES} />
+        </Form.Item>
       </Form>
     </Modal>
   );

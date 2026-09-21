@@ -49,22 +49,70 @@ async function loadOpenCV() {
   return cvPromise;
 }
 
-function loadImageElement(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load a captured photo.'));
-    img.src = url;
-  });
+/**
+ * Creates a drawing surface in either a window or a worker.
+ * OffscreenCanvas exists in both, so it is preferred; the DOM fallback keeps
+ * this working in older browsers on the main thread.
+ */
+function createCanvas(width, height) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
 }
 
-function matFromImageElement(cv, img) {
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  canvas.getContext('2d').drawImage(img, 0, 0);
-  return cv.imread(canvas);
+/**
+ * Loads a photo as an ImageBitmap. `new Image()` is a DOM API and does not
+ * exist inside a worker, so fetch + createImageBitmap is used instead — it
+ * works identically in both contexts.
+ * @param {string|ImageBitmap} source
+ */
+async function loadImageSource(source) {
+  if (typeof source !== 'string') return source; // already an ImageBitmap
+  let response;
+  try {
+    response = await fetch(source);
+  } catch {
+    throw new Error('Failed to load a captured photo.');
+  }
+  if (!response.ok) throw new Error('Failed to load a captured photo.');
+  return createImageBitmap(await response.blob());
+}
+
+/**
+ * Converts a bitmap to an OpenCV Mat.
+ *
+ * Deliberately avoids `cv.imread(canvas)`: that path type-checks for an
+ * HTMLCanvasElement in some builds and would reject an OffscreenCanvas.
+ * Going through ImageData works the same in a window and a worker.
+ */
+function matFromBitmap(cv, bitmap) {
+  const canvas = createCanvas(bitmap.width, bitmap.height);
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(bitmap, 0, 0);
+  const imageData = context.getImageData(0, 0, bitmap.width, bitmap.height);
+  return cv.matFromImageData(imageData);
+}
+
+/**
+ * Encodes an RGBA Mat as a JPEG blob, again without `cv.imshow`.
+ */
+async function matToBlob(mat) {
+  const canvas = createCanvas(mat.cols, mat.rows);
+  const context = canvas.getContext('2d');
+  const clamped = new Uint8ClampedArray(mat.data.buffer, mat.data.byteOffset, mat.data.byteLength);
+  context.putImageData(new ImageData(clamped, mat.cols, mat.rows), 0, 0);
+
+  if (typeof canvas.convertToBlob === 'function') {
+    return canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+  }
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) resolve(result);
+      else reject(new Error('Failed to encode the stitched panorama.'));
+    }, 'image/jpeg', 0.92);
+  });
 }
 
 /**
@@ -211,12 +259,16 @@ function stitchPair(cv, baseMat, nextMat) {
 
 /**
  * Stitches several overlapping photos into one panorama image.
- * @param {string[]} imageUrls - URLs of the source photos, in capture order.
+ *
+ * Runs unchanged on the main thread or inside a worker; see
+ * `src/workers/stitch.worker.js`, which is how the app actually calls it.
+ *
+ * @param {(string|ImageBitmap)[]} sources - photo URLs or bitmaps, in capture order.
  * @param {(info: { stage: string, index?: number, total?: number }) => void} [onProgress]
  * @returns {Promise<Blob>} The stitched panorama as a JPEG blob.
  */
-export async function stitchImages(imageUrls, onProgress) {
-  if (!Array.isArray(imageUrls) || imageUrls.length < 2) {
+export async function stitchImages(sources, onProgress) {
+  if (!Array.isArray(sources) || sources.length < 2) {
     throw new StitchError('not-enough-photos');
   }
 
@@ -225,31 +277,29 @@ export async function stitchImages(imageUrls, onProgress) {
 
   const sourceMats = [];
   try {
-    for (let i = 0; i < imageUrls.length; i += 1) {
-      onProgress?.({ stage: 'loading-photo', index: i + 1, total: imageUrls.length });
-      const img = await loadImageElement(imageUrls[i]);
-      sourceMats.push(matFromImageElement(cv, img));
+    for (let i = 0; i < sources.length; i += 1) {
+      onProgress?.({ stage: 'loading-photo', index: i + 1, total: sources.length });
+      const bitmap = await loadImageSource(sources[i]);
+      sourceMats.push(matFromBitmap(cv, bitmap));
+      bitmap.close?.();
     }
 
-    onProgress?.({ stage: 'stitching' });
     let composite = sourceMats[0].clone();
-    for (let i = 1; i < sourceMats.length; i += 1) {
-      const next = stitchPair(cv, composite, sourceMats[i]);
+    try {
+      for (let i = 1; i < sourceMats.length; i += 1) {
+        onProgress?.({ stage: 'stitching', index: i, total: sourceMats.length - 1 });
+        const next = stitchPair(cv, composite, sourceMats[i]);
+        composite.delete();
+        composite = next;
+      }
+
+      onProgress?.({ stage: 'encoding' });
+      const blob = await matToBlob(composite);
+      onProgress?.({ stage: 'done' });
+      return blob;
+    } finally {
       composite.delete();
-      composite = next;
     }
-
-    const outCanvas = document.createElement('canvas');
-    cv.imshow(outCanvas, composite);
-    composite.delete();
-
-    onProgress?.({ stage: 'done' });
-    return await new Promise((resolve, reject) => {
-      outCanvas.toBlob((result) => {
-        if (result) resolve(result);
-        else reject(new Error('Failed to encode the stitched panorama.'));
-      }, 'image/jpeg', 0.92);
-    });
   } finally {
     sourceMats.forEach((mat) => mat.delete());
   }

@@ -1,65 +1,87 @@
 /**
- * SmartNav360 — Auth Service (Placeholder)
- * Architecture-ready for JWT authentication.
- * Replace placeholder logic with real backend calls when auth is implemented.
+ * SmartNav360 — Auth Service
+ * Talks to the backend's JWT endpoints and keeps the token store in sync.
  */
 
-// import apiClient from './api';
-// import { API_ENDPOINTS } from '../constants/api';
-
-const STORAGE_KEY = 'smartnav360_user';
+import apiClient from './api';
+import { API_ENDPOINTS } from '../constants/api';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  setSession,
+} from './tokenStore';
 
 const AuthService = {
   /**
-   * Placeholder login.
-   * Replace with: apiClient.post(API_ENDPOINTS.AUTH_LOGIN, credentials)
+   * @param {{ email: string, password: string }} credentials
+   * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
    */
   async login(credentials) {
-    const { email, password } = credentials;
-
-    // Placeholder: accept any non-empty credentials
-    if (email && password) {
-      const user = {
-        id: 'placeholder-user-id',
-        email,
-        name: email.split('@')[0],
-        role: 'admin',
-        avatar: null,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-      return { success: true, data: user };
+    try {
+      const { data } = await apiClient.post(API_ENDPOINTS.AUTH_LOGIN, {
+        email: credentials.email,
+        password: credentials.password,
+      });
+      setSession(data.data);
+      return { success: true, data: data.data.user };
+    } catch (error) {
+      return { success: false, message: error.message || 'Sign-in failed.' };
     }
-
-    return { success: false, message: 'Invalid credentials' };
   },
 
   /**
-   * Placeholder logout.
-   * Replace with: apiClient.post(API_ENDPOINTS.AUTH_LOGOUT)
+   * @param {{ email: string, password: string, name: string }} details
    */
+  async register(details) {
+    try {
+      const { data } = await apiClient.post(API_ENDPOINTS.AUTH_REGISTER, {
+        email: details.email,
+        password: details.password,
+        name: details.name,
+      });
+      setSession(data.data);
+      return { success: true, data: data.data.user };
+    } catch (error) {
+      return { success: false, message: error.message || 'Could not create the account.' };
+    }
+  },
+
   async logout() {
-    localStorage.removeItem(STORAGE_KEY);
+    const refreshToken = getRefreshToken();
+    try {
+      // Best effort: the local session is cleared regardless, so a network
+      // failure can never leave the user apparently signed in.
+      if (refreshToken) await apiClient.post(API_ENDPOINTS.AUTH_LOGOUT, { refreshToken });
+    } catch {
+      // Intentionally ignored.
+    } finally {
+      clearSession();
+    }
     return { success: true };
   },
 
   /**
-   * Get current user from storage.
-   * Replace with: apiClient.get(API_ENDPOINTS.AUTH_ME)
+   * Re-reads the account from the server, which also validates the stored
+   * session on app start.
    */
-  getCurrentUser() {
+  async fetchCurrentUser() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
+      const { data } = await apiClient.get(API_ENDPOINTS.AUTH_ME);
+      setSession({ user: data.data });
+      return { success: true, data: data.data };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   },
 
-  /**
-   * Check if a user is currently logged in.
-   */
+  getCurrentUser() {
+    return getStoredUser();
+  },
+
   isAuthenticated() {
-    return !!this.getCurrentUser();
+    return !!(getAccessToken() || getRefreshToken());
   },
 };
 

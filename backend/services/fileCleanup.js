@@ -25,7 +25,12 @@ async function processPendingFiles() {
             const imagePath = `/uploads/${job.filename}`;
             // Preserve legacy shared files while any surviving entity owns/uses
             // them. New references can only be made to an existing owned asset.
-            if (await Asset.exists({ $or: [{ filename: job.filename }, { path: imagePath }] }) ||
+            // Derived thumbnails are matched on their own fields, so a queued
+            // thumbnail is kept while the asset that generated it still exists.
+            if (await Asset.exists({ $or: [
+                    { filename: job.filename }, { path: imagePath },
+                    { thumbnailFilename: job.filename }, { thumbnailPath: imagePath },
+                ] }) ||
                 await Scene.exists({ image: imagePath }) || await Project.exists({ floorPlan: imagePath })) {
                 pending++;
                 await PendingFileDeletion.updateOne({ _id: job._id }, { $set: { retryAt: new Date(Date.now() + 60000) } });
@@ -37,7 +42,7 @@ async function processPendingFiles() {
         } catch (error) {
             pending++;
             await PendingFileDeletion.updateOne({ _id: job._id }, { $set: { retryAt: new Date(Date.now() + 60000) } });
-            console.error(`Upload cleanup pending for ${job._id}:`, error.message);
+            if (process.env.NODE_ENV !== "test") console.error(`Upload cleanup pending for ${job._id}:`, error.message);
         }
     }
     return pending;

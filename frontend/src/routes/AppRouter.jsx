@@ -9,6 +9,7 @@ import MainLayout from '../layouts/MainLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorBoundary from '../components/common/ErrorBoundary';
+import ProtectedRoute from '../components/common/ProtectedRoute';
 
 /* ---- Lazy-loaded pages ---- */
 const ProjectSelection = lazy(() => import('../pages/ProjectSelection'));
@@ -26,6 +27,7 @@ const Analytics = lazy(() => import('../pages/Analytics'));
 const Deployment = lazy(() => import('../pages/Deployment'));
 const Settings = lazy(() => import('../pages/Settings'));
 const Login = lazy(() => import('../pages/Login'));
+const Register = lazy(() => import('../pages/Register'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
 function SuspenseWrapper({ children }) {
@@ -36,15 +38,25 @@ function SuspenseWrapper({ children }) {
   );
 }
 
+// Every workspace page needs both the lazy boundary and the auth gate, so they
+// are applied together rather than nested by hand at each route.
+function Guarded({ children, allowShareLink = false }) {
+  return (
+    <ProtectedRoute allowShareLink={allowShareLink}>
+      <SuspenseWrapper>{children}</SuspenseWrapper>
+    </ProtectedRoute>
+  );
+}
+
 const router = createBrowserRouter([
   /* ---- Project Selection (standalone page) ---- */
   {
     path: '/',
     errorElement: <ErrorBoundary />,
     element: (
-      <SuspenseWrapper>
+      <Guarded>
         <ProjectSelection />
-      </SuspenseWrapper>
+      </Guarded>
     ),
   },
 
@@ -76,6 +88,14 @@ const router = createBrowserRouter([
           </SuspenseWrapper>
         ),
       },
+      {
+        path: '/register',
+        element: (
+          <SuspenseWrapper>
+            <Register />
+          </SuspenseWrapper>
+        ),
+      },
     ],
   },
 
@@ -91,85 +111,85 @@ const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <Dashboard />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/assets',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <AssetManager />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/scenes',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <SceneBuilder />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/hotspots',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <HotspotBuilder />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/map',
-        element: <SuspenseWrapper><MapEditor /></SuspenseWrapper>,
+        element: <Guarded><MapEditor /></Guarded>,
       },
       {
         path: '/floor-plan',
-        element: <SuspenseWrapper><FloorPlan /></SuspenseWrapper>,
+        element: <Guarded><FloorPlan /></Guarded>,
       },
       {
         path: '/panorama',
-        element: <SuspenseWrapper><PanoramicViewer /></SuspenseWrapper>,
+        element: <Guarded><PanoramicViewer /></Guarded>,
       },
       {
         path: '/experience',
         element: (
-          <SuspenseWrapper>
+          <Guarded allowShareLink>
             <VirtualExperience />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/ai',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <AIWorkspace />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/analytics',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <Analytics />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/deployment',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <Deployment />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
       {
         path: '/settings',
         element: (
-          <SuspenseWrapper>
+          <Guarded>
             <Settings />
-          </SuspenseWrapper>
+          </Guarded>
         ),
       },
     ],

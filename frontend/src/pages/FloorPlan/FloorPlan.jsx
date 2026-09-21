@@ -4,15 +4,23 @@
  * with AI, then set it as this project's floor plan (used by Map Editor).
  */
 
-import { useState } from 'react';
-import { Button, Card, Empty, Image, Upload } from 'antd';
-import { InboxOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Empty, Image, Tag, Upload } from 'antd';
+import { DisconnectOutlined, InboxOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useProject } from '../../contexts/ProjectContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import ProjectService from '../../services/project.service';
 import UploadService from '../../services/upload.service';
-import { generateFloorPlanRender } from '../../services/puter.service';
+import {
+  PuterAuthError,
+  generateFloorPlanRender,
+  getPuterUser,
+  isPuterSignedIn,
+  puterErrorMessage,
+  signInToPuter,
+  signOutOfPuter,
+} from '../../services/puter.service';
 import { getImageUrl } from '../../utils/getImageUrl';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import './FloorPlan.css';
@@ -32,6 +40,41 @@ export default function FloorPlan() {
   const [renderedImage, setRenderedImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [puterUser, setPuterUser] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isPuterSignedIn()) return undefined;
+    getPuterUser().then((user) => {
+      if (!cancelled) setPuterUser(user);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Must not await anything before signInToPuter(): Puter opens its sign-in
+  // popup synchronously, and any earlier await spends the click's user
+  // activation, which makes the browser block the popup.
+  const connectPuter = () => {
+    setConnecting(true);
+    signInToPuter()
+      .then(() => getPuterUser())
+      .then((user) => {
+        setPuterUser(user);
+        success('Puter account connected', 'You can now generate 3D renders.');
+      })
+      .catch((err) => error('Could not connect your Puter account', puterErrorMessage(err)))
+      .finally(() => setConnecting(false));
+  };
+
+  const disconnectPuter = () => {
+    try {
+      signOutOfPuter();
+    } finally {
+      setPuterUser(null);
+      success('Puter account disconnected');
+    }
+  };
 
   const validateFile = (file) => {
     const extension = `.${file.name.split('.').pop()?.toLowerCase() || ''}`;
@@ -57,7 +100,7 @@ export default function FloorPlan() {
         success('Floor plan uploaded', 'Generate a 3D render below, or upload a different image.');
       }
     } catch (err) {
-      error('Upload failed', err.message);
+      error('Upload failed', puterErrorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -82,7 +125,12 @@ export default function FloorPlan() {
         success('3D render ready', "Set as this project's floor plan — pick it up in Map Editor.");
       }
     } catch (err) {
-      error('Could not generate the 3D render', err.message);
+      if (err instanceof PuterAuthError) {
+        setPuterUser(null);
+        error('Connect a Puter account first', err.message);
+      } else {
+        error('Could not generate the 3D render', puterErrorMessage(err));
+      }
     } finally {
       setRendering(false);
     }
@@ -92,12 +140,40 @@ export default function FloorPlan() {
     return <Empty description="Choose a project to generate a floor plan render." />;
   }
 
+  const connected = !!puterUser || isPuterSignedIn();
+
   return (
     <div className="floor-plan">
       <WorkspaceHeader
         title="Floor Plan"
         description="Upload a 2D floor plan and generate a photorealistic 3D render with AI, powered by Puter.js."
+        actions={
+          connected ? (
+            <Button icon={<DisconnectOutlined />} onClick={disconnectPuter}>
+              Disconnect Puter
+            </Button>
+          ) : (
+            <Button type="primary" icon={<UserOutlined />} loading={connecting} onClick={connectPuter}>
+              Connect Puter account
+            </Button>
+          )
+        }
       />
+
+      {connected ? (
+        <div className="floor-plan__account">
+          <Tag color="green">Puter connected</Tag>
+          {puterUser?.username && <span className="floor-plan__account-name">{puterUser.username}</span>}
+        </div>
+      ) : (
+        <Alert
+          className="floor-plan__notice"
+          type="info"
+          showIcon
+          title="Connect a free Puter account to render"
+          description="Rendering runs on Puter's hosted Gemini model. Click Connect Puter account and finish sign-in in the popup — it is a separate, free account, not your SmartNav360 login."
+        />
+      )}
 
       <Card className="floor-plan__upload-card">
         <Dragger
@@ -130,7 +206,7 @@ export default function FloorPlan() {
                 type="primary"
                 icon={<ThunderboltOutlined />}
                 loading={rendering}
-                disabled={uploading}
+                disabled={uploading || !connected}
                 onClick={handleGenerate}
               >
                 {renderedImage ? 'Regenerate' : 'Generate 3D Render'}
@@ -141,9 +217,9 @@ export default function FloorPlan() {
               <Image src={renderedImage} alt="AI-rendered floor plan" className="floor-plan__image" />
             ) : (
               <div className="floor-plan__placeholder">
-                {rendering
-                  ? 'Rendering with Puter AI — sign in if prompted, this can take a moment…'
-                  : 'Click "Generate 3D Render" to send this floor plan to Puter\'s hosted Gemini model.'}
+                {rendering && 'Rendering with Puter AI — this can take a moment…'}
+                {!rendering && !connected && 'Connect a Puter account to enable rendering.'}
+                {!rendering && connected && 'Click "Generate 3D Render" to send this floor plan to Puter\'s hosted Gemini model.'}
               </div>
             )}
           </Card>

@@ -13,20 +13,27 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import PanoramaService from '../../services/panorama.service';
 import UploadService from '../../services/upload.service';
-import { stitchImages } from '../../utils/stitchPanorama';
 import { getImageUrl } from '../../utils/getImageUrl';
 import { ROUTES } from '../../constants/routes';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import EmptyState from '../../components/common/EmptyState';
 import './PanoramicViewer.css';
 
-const POLL_INTERVAL_MS = 2500;
-
 const STAGE_LABELS = {
   'loading-library': 'Loading the stitching engine…',
   'loading-photo': 'Loading photos…',
-  stitching: 'Stitching photos into a panorama…',
+  stitching: 'Aligning photos…',
+  encoding: 'Encoding the panorama…',
   done: 'Done.',
+};
+
+// Rough progress per stage, so the bar advances instead of sitting at 60%.
+const STAGE_PERCENT = {
+  'loading-library': 15,
+  'loading-photo': 35,
+  stitching: 70,
+  encoding: 92,
+  done: 100,
 };
 
 export default function PanoramicViewer() {
@@ -42,25 +49,40 @@ export default function PanoramicViewer() {
   const [stitching, setStitching] = useState(false);
   const [stitchStage, setStitchStage] = useState(null);
   const [resultPreview, setResultPreview] = useState(null);
-  const pollRef = useRef(null);
+  const workerRef = useRef(null);
 
+  // Live updates over SSE. One held connection replaces a request every 2.5s
+  // per open viewer, and photos appear as soon as the phone uploads them.
   useEffect(() => {
     if (!token) return undefined;
-    const poll = async () => {
-      try {
-        const result = await PanoramaService.getSession(token);
-        if (result.success) {
-          setPhotos(result.data.photos || []);
-          setSessionStatus(result.data.status);
-        }
-      } catch {
-        // Transient network errors shouldn't stop the poll loop.
+    let cancelled = false;
+
+    // One immediate read so the card is populated before the first event.
+    PanoramaService.getSession(token)
+      .then((result) => {
+        if (cancelled || !result.success) return;
+        setPhotos(result.data.photos || []);
+        setSessionStatus(result.data.status);
+      })
+      .catch(() => {});
+
+    const unsubscribe = PanoramaService.subscribe(
+      token,
+      (data) => {
+        if (cancelled) return;
+        setPhotos(data.photos || []);
+        setSessionStatus(data.status);
+      },
+      (event) => {
+        if (event?.expired && !cancelled) setSessionStatus('expired');
       }
-    };
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
+    );
+
+    return () => { cancelled = true; unsubscribe(); };
   }, [token]);
+
+  // Terminate a running stitch if the page unmounts mid-job.
+  useEffect(() => () => workerRef.current?.terminate(), []);
 
   const captureUrl = token ? `${window.location.origin}${ROUTES.PANORAMA_CAPTURE}/${token}` : null;
 
@@ -91,25 +113,54 @@ export default function PanoramicViewer() {
     }
   };
 
-  const stitch = async () => {
+  const stitch = () => {
     setStitching(true);
-    try {
-      const blob = await stitchImages(
-        photos.map((photo) => getImageUrl(photo.path)),
-        (info) => setStitchStage(info.stage)
-      );
-      const file = new File([blob], 'panorama.jpg', { type: 'image/jpeg' });
-      const uploadResult = await UploadService.uploadImage(file, currentProject._id);
-      if (uploadResult.success) {
-        setResultPreview(getImageUrl(uploadResult.data.path));
-        success('Panorama saved', 'It is now available as an asset — add it to a scene in Scene Builder.');
-      }
-    } catch (err) {
-      error('Could not stitch these photos', err.message);
-    } finally {
+    setStitchStage('loading-library');
+
+    // OpenCV.js is a multi-megabyte WASM module and the composite step is a
+    // per-pixel loop over a growing canvas. Both run in a worker so the page
+    // stays responsive and the progress bar keeps animating.
+    const worker = new Worker(new URL('../../workers/stitch.worker.js', import.meta.url), { type: 'module' });
+    workerRef.current = worker;
+
+    const finish = () => {
+      worker.terminate();
+      workerRef.current = null;
       setStitching(false);
       setStitchStage(null);
-    }
+    };
+
+    worker.onmessage = async (event) => {
+      const message = event.data;
+      if (message.type === 'progress') {
+        setStitchStage(message.stage);
+        return;
+      }
+      if (message.type === 'error') {
+        error('Could not stitch these photos', message.message);
+        finish();
+        return;
+      }
+      try {
+        const file = new File([message.blob], 'panorama.jpg', { type: 'image/jpeg' });
+        const uploadResult = await UploadService.uploadImage(file, currentProject._id);
+        if (uploadResult.success) {
+          setResultPreview(getImageUrl(uploadResult.data.path));
+          success('Panorama saved', 'It is now available as an asset — add it to a scene in Scene Builder.');
+        }
+      } catch (err) {
+        error('Could not save the panorama', err.message);
+      } finally {
+        finish();
+      }
+    };
+
+    worker.onerror = (event) => {
+      error('Could not stitch these photos', event.message || 'The stitching worker failed to start.');
+      finish();
+    };
+
+    worker.postMessage({ imageUrls: photos.map((photo) => getImageUrl(photo.path)) });
   };
 
   if (!currentProject) {
@@ -152,9 +203,13 @@ export default function PanoramicViewer() {
               Copy link
             </Button>
             <p className="panoramic-viewer__hint">
-              {sessionStatus === 'done'
-                ? 'The phone marked this session as done.'
-                : 'Waiting for photos — this page updates automatically.'}
+              {sessionStatus === 'done' && 'The phone marked this session as done.'}
+              {sessionStatus === 'expired' && 'This session expired. Start a new one.'}
+              {sessionStatus !== 'done' && sessionStatus !== 'expired' && (
+                photos.length > 0
+                  ? `${photos.length} photo${photos.length === 1 ? '' : 's'} received — keep going, or stitch now.`
+                  : 'Waiting for photos — this page updates live.'
+              )}
             </p>
           </Card>
 
@@ -175,7 +230,7 @@ export default function PanoramicViewer() {
           >
             {stitching && (
               <div className="panoramic-viewer__progress">
-                <Progress percent={stitchStage === 'done' ? 100 : 60} showInfo={false} status="active" />
+                <Progress percent={STAGE_PERCENT[stitchStage] ?? 10} showInfo={false} status="active" />
                 <span>{STAGE_LABELS[stitchStage] || 'Working…'}</span>
               </div>
             )}

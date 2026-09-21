@@ -5,6 +5,7 @@ const sceneSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Project",
         required: true,
+        index: true,
     },
 
     name: {
@@ -43,6 +44,15 @@ const sceneSchema = new mongoose.Schema({
         distance: {
             type: Number,
             default: 0,
+            },
+
+        // How a visitor physically traverses this connection. The route finder
+        // weights and optionally excludes edges by this value, which is what
+        // turns the graph into accessibility-aware wayfinding.
+        access: {
+            type: String,
+            enum: ["flat", "stairs", "ramp", "elevator", "door", "escalator"],
+            default: "flat",
             },
         },
     ],

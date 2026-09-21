@@ -1,10 +1,16 @@
 const router = require("express").Router();
 const upload = require("../middleware/uploadMiddleware");
-const { createSession, getSession, uploadPhoto, completeSession } = require("../controllers/panoramaController");
+const { createSession, getSession, streamSession, uploadPhoto, completeSession } = require("../controllers/panoramaController");
+const { requireAuth } = require("../middleware/authMiddleware");
+const { sessionLimiter, uploadLimiter } = require("../middleware/rateLimit");
 
-router.post("/sessions", createSession);
+// Starting a session requires the project owner. Everything afterwards is
+// authorized by the session token itself, because the phone that scans the QR
+// code is not signed in — the token is the credential, and it expires in an hour.
+router.post("/sessions", requireAuth, sessionLimiter, createSession);
 router.get("/sessions/:token", getSession);
-router.post("/sessions/:token/photos", upload.single("image"), uploadPhoto);
+router.get("/sessions/:token/stream", streamSession);
+router.post("/sessions/:token/photos", uploadLimiter, upload.single("image"), uploadPhoto);
 router.post("/sessions/:token/complete", completeSession);
 
 module.exports = router;

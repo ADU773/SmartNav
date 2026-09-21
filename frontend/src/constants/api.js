@@ -34,12 +34,17 @@ export const API_ENDPOINTS = {
   /* ---- Panorama capture sessions ---- */
   PANORAMA_SESSIONS: '/api/panorama/sessions',
   PANORAMA_SESSION_BY_TOKEN: (token) => `/api/panorama/sessions/${token}`,
+  PANORAMA_SESSION_STREAM: (token) => `/api/panorama/sessions/${token}/stream`,
   PANORAMA_SESSION_PHOTOS: (token) => `/api/panorama/sessions/${token}/photos`,
   PANORAMA_SESSION_COMPLETE: (token) => `/api/panorama/sessions/${token}/complete`,
 
-  /* ---- Auth (future) ---- */
+  /* ---- Auth ---- */
+  AUTH_REGISTER: '/api/auth/register',
   AUTH_LOGIN: '/api/auth/login',
   AUTH_LOGOUT: '/api/auth/logout',
   AUTH_ME: '/api/auth/me',
   AUTH_REFRESH: '/api/auth/refresh',
+
+  /* ---- Health ---- */
+  HEALTH: '/healthz',
 };

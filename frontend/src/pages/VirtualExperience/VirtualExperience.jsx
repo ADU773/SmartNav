@@ -12,6 +12,7 @@ import {
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { ACCESS_MODES } from '../../constants/access';
 import SceneService from '../../services/scene.service';
 import PanoramaViewer from '../../components/experience/PanoramaViewer';
 import EmptyState from '../../components/common/EmptyState';
@@ -29,6 +30,9 @@ export default function VirtualExperience() {
   const [selectedScene, setSelectedScene] = useState(null);
   const [loading, setLoading] = useState(true);
   const [routeTarget, setRouteTarget] = useState();
+  // Access modes the visitor cannot or would rather not use. Excluded modes are
+  // removed from the graph server-side, so a step-free route really is one.
+  const [avoidModes, setAvoidModes] = useState([]);
   const [route, setRoute] = useState(null);
   const [detecting, setDetecting] = useState(false);
   const [detections, setDetections] = useState([]);
@@ -94,11 +98,11 @@ export default function VirtualExperience() {
     ProjectService.getProject(currentProject._id).then((result) => setProjectDetails(result.data)).catch(() => {});
   }, [currentProject?._id, shareToken]);
 
-  const findRoute = async (destinationId = routeTarget) => {
+  const findRoute = async (destinationId = routeTarget, avoid = avoidModes) => {
     if (!selectedScene?._id || !destinationId || destinationId === selectedScene._id) return;
     setRouteTarget(destinationId);
     try {
-      const result = await AIService.getNavigationPath(activeProject._id, selectedScene._id, destinationId);
+      const result = await AIService.getNavigationPath(activeProject._id, selectedScene._id, destinationId, avoid);
       setRoute({ ...result.data, destinationId });
     } catch (error) { setRoute({ error: error.message || 'No route found.', destinationId }); }
   };
@@ -226,10 +230,35 @@ export default function VirtualExperience() {
             <div className="virtual-experience__info-section">
               <h4><InfoCircleOutlined /> Shortest path</h4>
               <Select size="small" style={{ width: '100%', marginBottom: 8 }} placeholder="Choose destination" value={routeTarget} onChange={setRouteTarget} options={scenes.filter((scene) => scene._id !== selectedScene._id).map((scene) => ({ value: scene._id, label: scene.name }))} />
+              <Select
+                size="small"
+                mode="multiple"
+                allowClear
+                style={{ width: '100%', marginBottom: 8 }}
+                placeholder="Avoid (optional)"
+                value={avoidModes}
+                onChange={(modes) => { setAvoidModes(modes); if (routeTarget) findRoute(routeTarget, modes); }}
+                options={ACCESS_MODES.map((mode) => ({ value: mode.value, label: `Avoid ${mode.label.toLowerCase()}` }))}
+              />
               <Button size="small" type="primary" disabled={!routeTarget} onClick={() => findRoute()}>Find route</Button>
               {route?.path && <Button size="small" style={{ marginLeft: 8 }} onClick={clearRoute}>Clear route</Button>}
               {route?.error && <Alert style={{ marginTop: 8 }} type="warning" showIcon message={route.error} />}
-              {route?.path && <p className="virtual-experience__no-data" style={{ marginTop: 8 }}>Route: {route.path.map((scene) => scene.name).join(' → ')} · {route.distance} m{nextRouteScene ? ` · Next: ${nextRouteScene.name}` : ' · Destination reached'}</p>}
+              {route?.path && (
+                <div style={{ marginTop: 8 }}>
+                  <p className="virtual-experience__no-data">
+                    Route: {route.path.map((scene) => scene.name).join(' → ')} · cost {Math.round(route.distance)}
+                    {nextRouteScene ? ` · Next: ${nextRouteScene.name}` : ' · Destination reached'}
+                  </p>
+                  {route.avoided?.length > 0 && (
+                    <p className="virtual-experience__no-data">Step-free: avoids {route.avoided.join(', ')}.</p>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    {route.path.filter((step) => step.access).map((step) => (
+                      <Tag key={step._id} color={step.access === 'stairs' ? 'orange' : 'default'}>{step.access}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
