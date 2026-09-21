@@ -41,7 +41,7 @@
   justify-content: center;
   gap: var(--space-2);
   color: var(--color-text-secondary);
-  background: linear-gradient(135deg, #eef4ff, #f7f9fc);
+  background: var(--color-bg-subtle);
 }
 
 .asset-manager__exr-preview .anticon {

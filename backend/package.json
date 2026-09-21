@@ -10,6 +10,7 @@
     "mongodb-memory-server": "^11.2.0"
   },
   "scripts": {
+    "start": "node server.js",
     "test": "node --test tests/*.test.cjs",
     "test:integrity": "node --test tests/integrity.test.cjs"
   }

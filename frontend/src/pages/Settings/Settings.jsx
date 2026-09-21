@@ -145,7 +145,7 @@ export default function Settings() {
             <h4>Organization Branding</h4>
             <p>Customize logos and colors for your virtual experience.</p>
           </div>
-          <Tag color="purple">Coming Soon</Tag>
+          <Tag>Coming Soon</Tag>
         </div>
       </Card>
 
@@ -159,7 +159,7 @@ export default function Settings() {
             <h4>Authentication & Access Control</h4>
             <p>Configure JWT authentication, user roles, and permissions.</p>
           </div>
-          <Tag color="orange">Planned</Tag>
+          <Tag>Planned</Tag>
         </div>
         <Divider />
         <div className="settings__option">
@@ -167,7 +167,7 @@ export default function Settings() {
             <h4>User Roles</h4>
             <p>Manage admin, editor, and viewer roles.</p>
           </div>
-          <Tag color="orange">Planned</Tag>
+          <Tag>Planned</Tag>
         </div>
       </Card>
 

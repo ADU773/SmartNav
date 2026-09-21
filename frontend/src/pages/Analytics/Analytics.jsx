@@ -65,7 +65,7 @@ export default function Analytics() {
               dataSource={data?.sceneViews || []}
               columns={[
                 { title: 'Scene', dataIndex: 'name' },
-                { title: 'Views', dataIndex: 'views', render: (value) => <Tag color="blue">{value}</Tag> },
+                { title: 'Views', dataIndex: 'views', render: (value) => <Tag>{value}</Tag> },
               ]}
               locale={{ emptyText: 'Open the Virtual Experience to begin collecting views.' }}
             />

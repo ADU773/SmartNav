@@ -3,30 +3,24 @@
  */
 
 import { useNavigate } from 'react-router-dom';
-import { Button, Result } from 'antd';
-import { HomeOutlined } from '@ant-design/icons';
+import { Button } from 'antd';
+import { HomeOutlined, CompassOutlined } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import './NotFound.css';
 
 export default function NotFound() {
   useDocumentTitle('Page Not Found');
   const navigate = useNavigate();
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
-      <Result
-        status="404"
-        title="Page Not Found"
-        subTitle="The page you are looking for does not exist or has been moved."
-        extra={
-          <Button
-            type="primary"
-            icon={<HomeOutlined />}
-            onClick={() => navigate('/')}
-          >
-            Return Home
-          </Button>
-        }
-      />
+    <div className="not-found">
+      <span className="not-found__code">404</span>
+      <span className="not-found__mark"><CompassOutlined /></span>
+      <h1 className="not-found__title">Page Not Found</h1>
+      <p className="not-found__subtitle">The page you are looking for does not exist or has been moved.</p>
+      <Button type="primary" icon={<HomeOutlined />} onClick={() => navigate('/')}>
+        Return Home
+      </Button>
     </div>
   );
 }

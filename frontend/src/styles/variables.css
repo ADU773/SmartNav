@@ -1,63 +1,66 @@
 /* ============================================================
    SmartNav360 — Design Tokens
-   Modern enterprise design language inspired by Vercel / Linear
+   Vercel-style: disciplined monochrome, hairline borders,
+   Geist Sans/Mono (Inter/JetBrains Mono substitutes)
    ============================================================ */
 
 :root {
-  /* ---- Primary ---- */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-light: #eff6ff;
-  --color-primary-border: #bfdbfe;
+  /* ---- Primary (Obsidian — filled actions, primary text) ---- */
+  --color-primary: #171717;
+  --color-primary-hover: #000000;
+  --color-primary-light: #f0f0f0;
+  --color-primary-border: #ebebeb;
 
-  /* ---- Secondary ---- */
-  --color-secondary: #64748b;
-  --color-secondary-hover: #475569;
-  --color-secondary-light: #f1f5f9;
+  /* ---- Secondary (Charcoal — secondary actions, muted emphasis) ---- */
+  --color-secondary: #4d4d4d;
+  --color-secondary-hover: #171717;
+  --color-secondary-light: #f0f0f0;
 
   /* ---- Surfaces ---- */
-  --color-bg: #f8f9fb;
+  --color-bg: #fafafa;
   --color-bg-elevated: #ffffff;
-  --color-bg-subtle: #f1f5f9;
-  --color-bg-hover: #f1f5f9;
-  --color-bg-active: #e2e8f0;
+  --color-bg-subtle: #f5f5f5;
+  --color-bg-hover: #f0f0f0;
+  --color-bg-active: #ebebeb;
 
-  /* ---- Borders ---- */
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
-  --color-border-hover: #cbd5e1;
+  /* ---- Borders (hairline) ---- */
+  --color-border: #ebebeb;
+  --color-border-light: #f0f0f0;
+  --color-border-hover: #c9c9c9;
 
-  /* ---- Text ---- */
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #94a3b8;
+  /* ---- Text (value scale, never chromatic) ---- */
+  --color-text-primary: #171717;
+  --color-text-secondary: #4d4d4d;
+  --color-text-tertiary: #8f8f8f;
   --color-text-inverse: #ffffff;
-  --color-text-link: #2563eb;
+  --color-text-link: #171717;
 
-  /* ---- Semantic ---- */
-  --color-success: #16a34a;
-  --color-success-light: #f0fdf4;
-  --color-success-border: #bbf7d0;
-  --color-warning: #d97706;
-  --color-warning-light: #fffbeb;
-  --color-warning-border: #fde68a;
-  --color-error: #dc2626;
-  --color-error-light: #fef2f2;
-  --color-error-border: #fecaca;
-  --color-info: #2563eb;
-  --color-info-light: #eff6ff;
-  --color-info-border: #bfdbfe;
-  --color-accent-purple: #7c3aed;
-  --color-accent-purple-light: #f5f3ff;
-  --color-accent-purple-border: #ddd6fe;
+  /* ---- Semantic (functional status only — not decorative) ---- */
+  --color-success: #297a3a;
+  --color-success-light: #eef6f0;
+  --color-success-border: #cfe3d2;
+  --color-warning: #92620c;
+  --color-warning-light: #fbf3e6;
+  --color-warning-border: #ecd9b3;
+  --color-error: #b3261e;
+  --color-error-light: #fbedec;
+  --color-error-border: #f0c9c6;
+  --color-info: #4d4d4d;
+  --color-info-light: #f5f5f5;
+  --color-info-border: #ebebeb;
+  --color-accent-purple: #4d4d4d;
+  --color-accent-purple-light: #f5f5f5;
+  --color-accent-purple-border: #ebebeb;
 
   /* ---- Brand ---- */
-  --gradient-brand: linear-gradient(135deg, #2563eb, #4f46e5);
+  --gradient-brand: #171717;
+  --color-terminal-green: #297a3a;
+  --gradient-spectrum: linear-gradient(90deg, rgb(0, 255, 149) 0%, rgb(255, 208, 0) 25%, rgb(255, 23, 68) 50%, rgb(149, 0, 255) 75%, rgb(0, 229, 255) 100%);
 
   /* ---- Typography ---- */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+  --font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   --font-size-xs: 0.75rem;    /* 12px */
   --font-size-sm: 0.8125rem;  /* 13px */
@@ -69,18 +72,22 @@
   --font-size-3xl: 1.875rem;  /* 30px */
   --font-size-4xl: 2.25rem;   /* 36px */
 
+  --text-eyebrow: 11px;
+  --leading-eyebrow: 1.5;
+  --tracking-eyebrow: 0.071em;
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-bold: 500; /* system caps display weight at 450-500 — no true bold */
 
-  --line-height-tight: 1.25;
+  --line-height-tight: 1.2;
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.625;
 
-  --letter-spacing-tight: -0.025em;
+  --letter-spacing-tight: -0.03em;
   --letter-spacing-normal: 0;
-  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wide: 0.071em;
 
   /* ---- Spacing ---- */
   --space-1: 0.25rem;   /* 4px */
@@ -95,18 +102,18 @@
   --space-16: 4rem;     /* 64px */
   --space-20: 5rem;     /* 80px */
 
-  /* ---- Shadows ---- */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  /* ---- Shadows (hairline rings, no drop shadow) ---- */
+  --shadow-xs: 0 0 0 1px var(--color-border);
+  --shadow-sm: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 0 0 2px #fafafa;
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
 
-  /* ---- Radii ---- */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* ---- Radii (sharp — never larger than 6px on cards/buttons) ---- */
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
   --radius-full: 9999px;
 
   /* ---- Transitions ---- */
@@ -118,7 +125,7 @@
   /* ---- Layout ---- */
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 72px;
-  --topbar-height: 56px;
+  --topbar-height: 64px;
   --content-max-width: 1280px;
 
   /* ---- Z-Index ---- */
@@ -133,52 +140,52 @@
    Dark Theme (architecture-ready, currently opt-in)
    ============================================================ */
 [data-theme='dark'] {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #60a5fa;
-  --color-primary-light: #1e293b;
-  --color-primary-border: #1e40af;
+  --color-primary: #fafafa;
+  --color-primary-hover: #ffffff;
+  --color-primary-light: #262626;
+  --color-primary-border: #333333;
 
-  --color-secondary: #94a3b8;
-  --color-secondary-hover: #cbd5e1;
-  --color-secondary-light: #1e293b;
+  --color-secondary: #a8a8a8;
+  --color-secondary-hover: #fafafa;
+  --color-secondary-light: #262626;
 
-  --color-bg: #0f172a;
-  --color-bg-elevated: #1e293b;
-  --color-bg-subtle: #1e293b;
-  --color-bg-hover: #334155;
-  --color-bg-active: #475569;
+  --color-bg: #0a0a0a;
+  --color-bg-elevated: #171717;
+  --color-bg-subtle: #1f1f1f;
+  --color-bg-hover: #262626;
+  --color-bg-active: #333333;
 
-  --color-border: #334155;
-  --color-border-light: #1e293b;
-  --color-border-hover: #475569;
+  --color-border: #333333;
+  --color-border-light: #262626;
+  --color-border-hover: #4d4d4d;
 
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
-  --color-text-inverse: #0f172a;
-  --color-text-link: #60a5fa;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a8a8a8;
+  --color-text-tertiary: #737373;
+  --color-text-inverse: #171717;
+  --color-text-link: #fafafa;
 
-  --color-success: #22c55e;
-  --color-success-light: #052e16;
-  --color-success-border: #166534;
-  --color-warning: #f59e0b;
-  --color-warning-light: #451a03;
-  --color-warning-border: #92400e;
-  --color-error: #ef4444;
-  --color-error-light: #450a0a;
-  --color-error-border: #991b1b;
-  --color-info: #3b82f6;
-  --color-info-light: #172554;
-  --color-info-border: #1e40af;
-  --color-accent-purple: #a78bfa;
-  --color-accent-purple-light: #2e1065;
-  --color-accent-purple-border: #5b21b6;
+  --color-success: #3fa858;
+  --color-success-light: #10261a;
+  --color-success-border: #1f4a2d;
+  --color-warning: #d1993f;
+  --color-warning-light: #2e2413;
+  --color-warning-border: #5c481f;
+  --color-error: #e5615a;
+  --color-error-light: #2e1615;
+  --color-error-border: #5c2b28;
+  --color-info: #a8a8a8;
+  --color-info-light: #1f1f1f;
+  --color-info-border: #333333;
+  --color-accent-purple: #a8a8a8;
+  --color-accent-purple-light: #1f1f1f;
+  --color-accent-purple-border: #333333;
 
-  --gradient-brand: linear-gradient(135deg, #3b82f6, #6366f1);
+  --gradient-brand: #fafafa;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  --shadow-xs: 0 0 0 1px var(--color-border);
+  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 0 2px #0a0a0a;
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 16px 40px rgba(0, 0, 0, 0.55);
 }

@@ -39,16 +39,20 @@ export function ThemeProvider({ children }) {
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
       // Kept in sync with --color-primary in styles/variables.css for each theme.
-      colorPrimary: isDark ? '#3b82f6' : '#2563eb',
-      borderRadius: 8,
+      colorPrimary: isDark ? '#fafafa' : '#171717',
+      colorTextLightSolid: isDark ? '#171717' : '#ffffff',
+      colorLink: isDark ? '#fafafa' : '#171717',
+      colorLinkHover: isDark ? '#ffffff' : '#000000',
+      colorLinkActive: isDark ? '#ffffff' : '#000000',
+      borderRadius: 6,
       fontFamily:
-        "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        "'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
       fontSize: 14,
-      colorBgContainer: isDark ? '#1e293b' : '#ffffff',
-      colorBgLayout: isDark ? '#0f172a' : '#f8f9fb',
-      colorBorder: isDark ? '#334155' : '#e2e8f0',
-      colorText: isDark ? '#f1f5f9' : '#0f172a',
-      colorTextSecondary: isDark ? '#94a3b8' : '#475569',
+      colorBgContainer: isDark ? '#171717' : '#ffffff',
+      colorBgLayout: isDark ? '#0a0a0a' : '#fafafa',
+      colorBorder: isDark ? '#333333' : '#ebebeb',
+      colorText: isDark ? '#fafafa' : '#171717',
+      colorTextSecondary: isDark ? '#a8a8a8' : '#4d4d4d',
     },
   };
 

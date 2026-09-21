@@ -65,7 +65,7 @@ export default function Deployment() {
           className="deployment__card"
           title={
             <Space>
-              <GlobalOutlined /> {currentProject.name} <Tag color="blue">Ready to publish</Tag>
+              <GlobalOutlined /> {currentProject.name} <Tag color="green">Ready to publish</Tag>
             </Space>
           }
         >

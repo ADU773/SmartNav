@@ -94,11 +94,12 @@
 }
 
 .sidebar__nav .ant-menu-item-group-title {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-tertiary);
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
+  letter-spacing: var(--tracking-eyebrow);
   padding: var(--space-3) var(--space-6) var(--space-1);
 }
 

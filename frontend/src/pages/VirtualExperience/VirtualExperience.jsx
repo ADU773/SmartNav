@@ -149,7 +149,7 @@ export default function VirtualExperience() {
                 <span>{scene.name}</span>
               </div>
               {scene.hotspots?.length > 0 && (
-                <Tag color="blue" className="virtual-experience__scene-tag">
+                <Tag className="virtual-experience__scene-tag">
                   {scene.hotspots.length}
                 </Tag>
               )}
@@ -187,7 +187,7 @@ export default function VirtualExperience() {
             <div className="virtual-experience__info-section">
               <h4><EyeOutlined /> YOLO object detection</h4>
               <Button size="small" loading={detecting} disabled={!selectedScene.image} onClick={detectObjects}>Detect objects</Button>
-              <div style={{ marginTop: 8 }}>{detections.map((label) => <Tag key={label} color="purple">{label}</Tag>)}</div>
+              <div style={{ marginTop: 8 }}>{detections.map((label) => <Tag key={label}>{label}</Tag>)}</div>
               {!selectedScene.image && <p className="virtual-experience__no-data">Add a panorama image before running detection.</p>}
             </div>
 

@@ -33,7 +33,7 @@ export default function ProjectCard({ project, onClick }) {
           <CalendarOutlined />
           {formatRelativeDate(project.createdAt)}
         </span>
-        <Tag color="blue" className="project-card__tag">
+        <Tag className="project-card__tag">
           <AppstoreOutlined /> Project
         </Tag>
       </div>
