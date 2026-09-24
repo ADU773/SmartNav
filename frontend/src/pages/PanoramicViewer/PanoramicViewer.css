@@ -67,6 +67,18 @@
   border-radius: var(--radius-md);
 }
 
+.panoramic-viewer__details {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.panoramic-viewer__details-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+
 @media (max-width: 900px) {
   .panoramic-viewer__grid {
     grid-template-columns: 1fr;

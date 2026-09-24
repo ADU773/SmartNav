@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "SmartNav Capture",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "scheme": "smartnav",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "SmartNav needs the camera to capture panorama frames for your session.",
+        "NSMotionUsageDescription": "SmartNav uses motion sensors to guide you through a full turn while capturing."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SmartNav needs the camera to capture panorama frames for your session."
+        }
+      ]
+    ]
+  }
+}

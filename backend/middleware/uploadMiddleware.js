@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage,
     // High-resolution equirectangular 360° panoramas can be several hundred MB.
-    limits: { fileSize: 500 * 1024 * 1024, files: 1, fields: 1 },
+    limits: { fileSize: 500 * 1024 * 1024, files: 1, fields: 2 },
     fileFilter: (req, file, cb) => {
         const expectedType = imageTypes.get(path.extname(file.originalname).toLowerCase());
         if (expectedType && (file.mimetype === expectedType || file.mimetype === "application/octet-stream")) {
