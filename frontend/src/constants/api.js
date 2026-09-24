@@ -3,7 +3,33 @@
  * Centralized definition of all backend API endpoints.
  */
 
-export const API_BASE_URL = 'http://localhost:5000';
+const API_PORT = import.meta.env.VITE_API_PORT || '5000';
+
+/**
+ * Resolves the backend base URL without hard-coding a machine's LAN address.
+ *
+ * Order:
+ *  1. VITE_API_BASE_URL — an explicit override always wins.
+ *  2. The host this page was served from, when that is not localhost. Opening
+ *     the dev server at http://<lan-ip>:5173 then yields http://<lan-ip>:5000,
+ *     so a phone on the same Wi-Fi or hotspot works with no configuration and
+ *     no edit when the laptop or network changes.
+ *  3. localhost, for the ordinary single-machine case.
+ */
+function resolveApiBaseUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, hostname } = window.location;
+    const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+    if (!isLoopback && hostname) return `${protocol}//${hostname}:${API_PORT}`;
+  }
+  return `http://localhost:${API_PORT}`;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
+/** True when API_BASE_URL is reachable from another device on the network. */
+export const API_BASE_IS_SHAREABLE = !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|$|\/)/i.test(API_BASE_URL);
 
 export const API_ENDPOINTS = {
   /* ---- Projects ---- */

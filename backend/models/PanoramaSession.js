@@ -14,6 +14,12 @@ const photoSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    // Optional native-capture metadata (mobile app). Absent for browser uploads.
+    frameId: { type: String },
+    sequence: { type: Number },
+    yaw: { type: Number },
+    pitch: { type: Number },
+    roll: { type: Number },
 }, { _id: true });
 
 const panoramaSessionSchema = new mongoose.Schema({
