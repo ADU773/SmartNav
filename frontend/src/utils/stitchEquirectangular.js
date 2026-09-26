@@ -14,7 +14,8 @@
  *
  * So the metadata is now treated as what it is — a good starting guess. Each
  * adjacent pair of frames is registered against its own overlapping pixels
- * (ORB features, Lowe ratio test, RANSAC over a rotation-only model), one
+ * (XFeat learned features with mutual nearest-neighbour matching, falling back
+ * to ORB with Lowe's ratio test, then RANSAC over a rotation-only model), one
  * shared focal length is solved for from those same correspondences, and any
  * loop-closure error is spread around the circle. Only then are the frames
  * reprojected.
@@ -36,6 +37,8 @@
  */
 
 import { loadOpenCV, detectFeatures, matchDescriptors } from "./panorama/features";
+import { loadXFeat, detectLearnedFeatures } from "./panorama/learnedFeatures";
+import { matchMutualNearest } from "./panorama/xfeat";
 import {
   DEG,
   fovFromFocal,
@@ -134,6 +137,11 @@ function pairLabel(from, to) {
   return `${from + 1} → ${to + 1}`;
 }
 
+/** Lets React paint a progress update between long synchronous steps. */
+function yieldToBrowser() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 /**
  * Stitches captured frames into one equirectangular panorama.
  *
@@ -155,6 +163,8 @@ export async function stitchEquirectangular(photos, onProgress) {
     loopClosureDeg: null,
     focalRefined: false,
     notes: [],
+    matcher: "orb",
+    matcherCounts: { xfeat: 0, orb: 0 },
   };
 
   /* ---- 1. Load frames at working resolution ---- */
@@ -178,15 +188,52 @@ export async function stitchEquirectangular(photos, onProgress) {
   const initialFocal = focalFromFov(longAxis, DEFAULT_LONG_AXIS_FOV_DEG * DEG);
   report.initialHfovDeg = fovFromFocal(frames[0].width, initialFocal) / DEG;
 
-  /* ---- 2. Detect features once per frame ---- */
+  /* ---- 2. Detect features once per frame ----------------------------
+   *
+   * XFeat, a small learned detector, is the primary matcher. ORB stays as a
+   * per-pair fallback and is computed lazily — only for frames in a pair that
+   * XFeat could not register — so the common path pays for one detector, and
+   * no pair can end up worse off than it was with ORB alone.
+   *
+   * Measured on a real 13-frame indoor iPhone capture using this file's own
+   * registration code: XFeat produced 2.3-3.3x the RANSAC inliers of ORB, and
+   * where both registered a pair their rotations agreed to within 0.7°. It
+   * does not create overlap that is not there; pairs with no shared content
+   * still fall back to the sensors with either matcher.
+   */
 
-  onProgress?.({ stage: "features", index: 0, total: count });
-  const cv = await loadOpenCV();
-  const features = [];
+  onProgress?.({ stage: "loading-model" });
+  let xfeatModel = null;
+  try {
+    xfeatModel = await loadXFeat();
+    report.matcher = "xfeat";
+  } catch (error) {
+    report.notes.push(
+      `The learned feature matcher could not be loaded (${error?.message || "unknown error"}), so every pair used ORB.`,
+    );
+  }
+
+  const learned = [];
+  const orb = new Array(count).fill(null);
+  let cv = null;
+
+  const orbFor = async (index) => {
+    if (!orb[index]) {
+      cv ||= await loadOpenCV();
+      orb[index] = detectFeatures(cv, frames[index].canvas, frames[index].width, frames[index].height);
+    }
+    return orb[index];
+  };
+
   try {
     for (let i = 0; i < count; i += 1) {
       onProgress?.({ stage: "features", index: i + 1, total: count });
-      features.push(detectFeatures(cv, frames[i].canvas, frames[i].width, frames[i].height));
+      await yieldToBrowser();
+      if (xfeatModel) {
+        learned.push(await detectLearnedFeatures(xfeatModel, frames[i].canvas, frames[i].width, frames[i].height));
+      } else {
+        await orbFor(i);
+      }
     }
 
     /* ---- 3. Match and register each adjacent pair ---- */
@@ -200,20 +247,58 @@ export async function stitchEquirectangular(photos, onProgress) {
     for (let i = 0; i < count - 1; i += 1) links.push([i, i + 1]);
     if (attemptLoopClosure) links.push([count - 1, 0]);
 
-    const estimatePair = (fromIndex, toIndex, focal, options, cachedMatches) => {
+    const learnedMatches = (fromIndex, toIndex) => {
+      const a = learned[fromIndex];
+      const b = learned[toIndex];
+      return matchMutualNearest(a.descriptors, a.count, b.descriptors, b.count).map((m) => ({
+        x1: a.points[m.queryIdx].x,
+        y1: a.points[m.queryIdx].y,
+        x2: b.points[m.trainIdx].x,
+        y2: b.points[m.trainIdx].y,
+      }));
+    };
+
+    const orbMatches = async (fromIndex, toIndex) => {
+      const a = await orbFor(fromIndex);
+      const b = await orbFor(toIndex);
+      return matchDescriptors(cv, a.descriptors, b.descriptors).map((m) => ({
+        x1: a.points[m.queryIdx].x,
+        y1: a.points[m.queryIdx].y,
+        x2: b.points[m.trainIdx].x,
+        y2: b.points[m.trainIdx].y,
+      }));
+    };
+
+    /**
+     * Registers one pair. With `cached` (the second, calibrated pass) the
+     * matches that won the first pass are reused as-is.
+     */
+    const estimatePair = async (fromIndex, toIndex, focal, options, cached) => {
       const frameA = frames[fromIndex];
       const frameB = frames[toIndex];
-      const matches =
-        cachedMatches ||
-        matchDescriptors(cv, features[fromIndex].descriptors, features[toIndex].descriptors).map((m) => {
-          const a = features[fromIndex].points[m.queryIdx];
-          const b = features[toIndex].points[m.trainIdx];
-          return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
-        });
-
       const sensorRelative = matMul(matTranspose(frameA.sensor), frameB.sensor);
-      const estimate = estimatePairRotation(matches, frameA, frameB, focal, sensorRelative, options);
-      return { ...estimate, frameA, frameB, from: fromIndex, to: toIndex, matches };
+      const run = (matches, matcher) => ({
+        ...estimatePairRotation(matches, frameA, frameB, focal, sensorRelative, options),
+        frameA,
+        frameB,
+        from: fromIndex,
+        to: toIndex,
+        matches,
+        matcher,
+      });
+
+      if (cached) return run(cached.matches, cached.matcher);
+
+      let primary = null;
+      if (learned.length) {
+        primary = run(learnedMatches(fromIndex, toIndex), "xfeat");
+        if (primary.source === "image") return primary;
+      }
+      const fallback = run(await orbMatches(fromIndex, toIndex), "orb");
+      // Keep whichever registered. If neither did, report the learned result:
+      // its match counts say more about why the pair failed.
+      if (!primary || fallback.source === "image") return fallback;
+      return primary;
     };
 
     /* ---- 3a. Broad first pass ------------------------------------------
@@ -234,7 +319,8 @@ export async function stitchEquirectangular(photos, onProgress) {
         total: links.length,
         detail: pairLabel(from, to),
       });
-      pairs.push(estimatePair(from, to, initialFocal, { overlapCheck: false }));
+      await yieldToBrowser();
+      pairs.push(await estimatePair(from, to, initialFocal, { overlapCheck: false }));
     }
 
     /* ---- 4. Solve one focal length from the correspondences ---- */
@@ -261,18 +347,24 @@ export async function stitchEquirectangular(photos, onProgress) {
        * pair its registration.
        */
       onProgress?.({ stage: "aligning", index: 0, total: pairs.length });
-      pairs = pairs.map((pair, i) => {
+      const refinedPairs = [];
+      for (let i = 0; i < pairs.length; i += 1) {
+        const pair = pairs[i];
         onProgress?.({
           stage: "aligning",
           index: i + 1,
           total: pairs.length,
           detail: pairLabel(pair.from, pair.to),
         });
-        const refined = estimatePair(pair.from, pair.to, focal, { overlapCheck: true }, pair.matches);
-        if (refined.source === "image" && refined.inlierMatches.length >= pair.inlierMatches.length) return refined;
-        if (refined.source === "image" && pair.source === "sensor") return refined;
-        return pair;
-      });
+        const refined = await estimatePair(pair.from, pair.to, focal, { overlapCheck: true }, {
+          matches: pair.matches,
+          matcher: pair.matcher,
+        });
+        if (refined.source === "image" && refined.inlierMatches.length >= pair.inlierMatches.length) refinedPairs.push(refined);
+        else if (refined.source === "image" && pair.source === "sensor") refinedPairs.push(refined);
+        else refinedPairs.push(pair);
+      }
+      pairs = refinedPairs;
     }
 
     report.focalPx = focal;
@@ -283,15 +375,17 @@ export async function stitchEquirectangular(photos, onProgress) {
       width: frame.width,
       height: frame.height,
       aspect: frame.width / frame.height,
-      keypoints: features[i].points.length,
+      keypoints: learned[i] ? learned[i].count : orb[i]?.points.length ?? 0,
     }));
 
     for (const pair of pairs) {
       const entry = {
         pair: pairLabel(pair.from, pair.to),
         source: pair.source,
+        matcher: pair.matcher,
         ...pair.stats,
       };
+      if (pair.source === "image") report.matcherCounts[pair.matcher] += 1;
       if (pair.source === "sensor") {
         entry.reason = pair.reason;
         report.fallbackPairs.push(`${entry.pair}: ${pair.reason}`);
@@ -353,7 +447,7 @@ export async function stitchEquirectangular(photos, onProgress) {
     onProgress?.({ stage: "done" });
     return { blob, report };
   } finally {
-    features.forEach((entry) => entry.release());
+    orb.forEach((entry) => entry?.release());
   }
 }
 

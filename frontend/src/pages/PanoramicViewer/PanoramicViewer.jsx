@@ -25,6 +25,7 @@ const POLL_INTERVAL_MS = 2500;
 
 const STAGE_LABELS = {
   'loading-photo': 'Loading photos…',
+  'loading-model': 'Loading the feature-matching model…',
   features: 'Finding image features…',
   matching: 'Matching overlapping frames…',
   calibrating: 'Estimating the camera field of view…',
@@ -45,6 +46,9 @@ function describeStitch(report) {
   }
   const registered = report.pairs.filter((pair) => pair.source === 'image').length;
   parts.push(`${registered}/${report.pairs.length} pairs aligned on image features`);
+  if (report.matcherCounts?.orb > 0 && report.matcher === 'xfeat') {
+    parts.push(`${report.matcherCounts.orb} rescued by the ORB fallback`);
+  }
   if (report.loopClosureDeg) parts.push(`loop closure ${report.loopClosureDeg.toFixed(1)}° spread across the turn`);
   return parts.join(' · ');
 }
@@ -56,6 +60,12 @@ const PAIR_COLUMNS = [
     dataIndex: 'source',
     key: 'source',
     render: (source) => (source === 'image' ? 'image features' : 'sensors only'),
+  },
+  {
+    title: 'Matcher',
+    dataIndex: 'matcher',
+    key: 'matcher',
+    render: (matcher) => (matcher === 'xfeat' ? 'XFeat' : matcher === 'orb' ? 'ORB' : '—'),
   },
   { title: 'Ratio matches', dataIndex: 'descriptorMatches', key: 'descriptorMatches' },
   { title: 'In overlap', dataIndex: 'consideredMatches', key: 'consideredMatches' },
