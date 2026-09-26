@@ -14,7 +14,8 @@ export function NotificationProvider({ children }) {
   const notify = useCallback(
     ({ type = 'info', message, description, duration = 4 }) => {
       api[type]({
-        message,
+        // antd v6 renamed `message` to `title`.
+        title: message,
         description,
         duration,
         placement: 'topRight',

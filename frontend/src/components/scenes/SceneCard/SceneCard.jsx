@@ -14,8 +14,9 @@ import { getImageUrl } from '../../../utils/getImageUrl';
 import { formatRelativeDate } from '../../../utils/formatDate';
 import './SceneCard.css';
 
-export default function SceneCard({ scene, onView, onDelete }) {
-  const imageUrl = getImageUrl(scene.image);
+export default function SceneCard({ scene, previewUrl, onView, onDelete }) {
+  // A small thumbnail when the caller has one; the full panorama otherwise.
+  const imageUrl = previewUrl || getImageUrl(scene.image);
   const hotspotCount = scene.hotspots?.length || 0;
 
   return (
@@ -24,7 +25,7 @@ export default function SceneCard({ scene, onView, onDelete }) {
       cover={
         <div className="scene-card__cover">
           {imageUrl ? (
-            <img src={imageUrl} alt={scene.name} className="scene-card__image" />
+            <img src={imageUrl} alt={scene.name} className="scene-card__image" loading="lazy" />
           ) : (
             <div className="scene-card__placeholder">
               <EyeOutlined />

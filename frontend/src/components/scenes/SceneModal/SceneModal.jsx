@@ -1,34 +1,30 @@
 /**
  * SmartNav360 — SceneModal
- * Modal for creating a new scene.
+ * Modal for creating a new scene: a name, plus a panorama chosen visually
+ * from the project's uploaded images.
  */
 
-import { Modal, Form, Input, Select } from 'antd';
+import { Modal, Form, Input } from 'antd';
 import { useState } from 'react';
+import AssetPicker from '../../common/AssetPicker';
 
 export default function SceneModal({ open, onClose, onSubmit, projectId, assets = [] }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-///////////////////////////////
+
   const handleSubmit = async () => {
-  try {
-    const values = await form.validateFields();
-
-    console.log("FORM VALUES:", values);
-
-    setLoading(true);
-
-    await onSubmit({
-      ...values,
-      projectId,
-    });
-
-    form.resetFields();
-    onClose();
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const values = await form.validateFields();
+      setLoading(true);
+      await onSubmit({ ...values, projectId });
+      form.resetFields();
+      onClose();
+    } catch {
+      // Validation errors are shown inline; submit errors are reported by onSubmit.
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal
@@ -40,39 +36,24 @@ export default function SceneModal({ open, onClose, onSubmit, projectId, assets 
       confirmLoading={loading}
       destroyOnHidden
       centered
+      width={720}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        requiredMark="optional"
-        style={{ marginTop: 16 }}
-      >
+      <Form form={form} layout="vertical" requiredMark="optional" style={{ marginTop: 16 }}>
         <Form.Item
           name="name"
           label="Scene Name"
-          rules={[
-            { required: true, message: 'Please enter a scene name' },
-          ]}
+          rules={[{ required: true, message: 'Please enter a scene name' }]}
         >
           <Input placeholder="e.g. Main Entrance, Reception Hall" />
         </Form.Item>
 
         <Form.Item
-  name="image"
-  label="Panorama Image"
-  extra="Select a previously uploaded 360° image"
->
-  <Select
-    placeholder="Select an image"
-    allowClear
-    showSearch
-    optionFilterProp="label"
-    options={assets.map((asset) => ({
-      value: asset.path || asset.filename,
-      label: asset.originalName || asset.filename || asset.path,
-    }))}
-  />
-</Form.Item>
+          name="image"
+          label="Panorama Image"
+          extra="Pick a 360° image. Wide 2:1 images are the ones that wrap all the way around."
+        >
+          <AssetPicker assets={assets} preferPanoramic />
+        </Form.Item>
       </Form>
     </Modal>
   );

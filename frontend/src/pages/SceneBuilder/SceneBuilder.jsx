@@ -20,6 +20,7 @@ import EmptyState from '../../components/common/EmptyState';
 import SceneCard from '../../components/scenes/SceneCard';
 import SceneModal from '../../components/scenes/SceneModal';
 import './SceneBuilder.css';
+import { buildPreviewIndex, scenePreviewUrl } from '../../utils/imagePreview';
 
 export default function SceneBuilder() {
   useDocumentTitle('Scenes');
@@ -31,6 +32,7 @@ export default function SceneBuilder() {
   const [scenes, setScenes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assets, setAssets] = useState([]);
+  const previewIndex = useMemo(() => buildPreviewIndex(assets), [assets]);
   const [modalOpen, setModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -145,6 +147,7 @@ export default function SceneBuilder() {
               <Col xs={24} sm={12} md={8} lg={6} key={scene._id}>
                 <SceneCard
                   scene={scene}
+                  previewUrl={scenePreviewUrl(scene, previewIndex)}
                   onView={handleViewScene}
                   onDelete={handleDeleteScene}
                 />

@@ -5,6 +5,7 @@
 
 import apiClient from './api';
 import { API_ENDPOINTS } from '../constants/api';
+import { fetchAllPages } from './paginate';
 
 const UploadService = {
   /**
@@ -35,11 +36,13 @@ const UploadService = {
     return response.data;
   },
 
+  /**
+   * Fetch every asset in a project, across all pages, newest first.
+   * @param {string} projectId
+   * @returns {Promise<object>} { success, count, data }
+   */
   async getUploads(projectId) {
-    const response = await apiClient.get(API_ENDPOINTS.UPLOAD, {
-      params: { projectId },
-    });
-    return response.data;
+    return fetchAllPages(API_ENDPOINTS.UPLOAD, { projectId });
   },
 
   /**

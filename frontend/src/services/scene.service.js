@@ -5,34 +5,17 @@
 
 import apiClient from './api';
 import { API_ENDPOINTS } from '../constants/api';
+import { fetchAllPages } from './paginate';
 
 const SceneService = {
   /**
-   * Fetch all scenes.
-   * @param {object} [params] Optional query params (e.g., projectId)
+   * Fetch every scene in a project, across all pages.
+   * @param {string} projectId
    * @returns {Promise<object>} { success, count, data }
    */
   async getScenes(projectId) {
-
-    const response = await apiClient.get(
-
-        API_ENDPOINTS.SCENES,
-
-        {
-
-            params: {
-
-                projectId
-
-            }
-
-        }
-
-    );
-
-    return response.data;
-
-},
+    return fetchAllPages(API_ENDPOINTS.SCENES, { projectId });
+  },
 
   /**
    * Fetch a single scene by ID.

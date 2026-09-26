@@ -16,6 +16,7 @@ import UploadService from '../../services/upload.service';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import MiniMap from '../../components/map/MiniMap';
 import './MapEditor.css';
+import { assetLabel, assetPreviewUrl } from '../../utils/imagePreview';
 
 export default function MapEditor() {
   useDocumentTitle('Map Editor');
@@ -116,7 +117,15 @@ export default function MapEditor() {
               value={project?.floorPlan || undefined}
               placeholder="Choose an uploaded floor-plan image"
               onChange={chooseFloorPlan}
-              options={assets.map((asset) => ({ value: asset.path, label: asset.originalName || asset.filename }))}
+              options={assets.map((asset) => ({ value: asset.path, label: assetLabel(asset), asset }))}
+              showSearch
+              optionFilterProp="label"
+              optionRender={(option) => (
+                <span className="map-editor__option">
+                  <img src={assetPreviewUrl(option.data.asset)} alt="" loading="lazy" />
+                  <span>{option.data.label}</span>
+                </span>
+              )}
             />
             {!project?.floorPlan && (
               <Alert

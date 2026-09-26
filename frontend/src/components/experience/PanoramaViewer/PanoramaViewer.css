@@ -122,6 +122,7 @@
 }
 
 .smartnav-hotspot {
+  position: relative;
   width: 44px;
   height: 52px;
   color: #171717;
@@ -152,27 +153,42 @@
 .panorama-viewer--edit .panorama-viewer__canvas { cursor: crosshair; }
 
 .smartnav-hotspot--edit { color: var(--color-success); }
-.smartnav-hotspot--edit:hover { color: var(--color-error); background: var(--color-error); }
-.smartnav-hotspot--edit:hover svg { animation: smartnav-edit-shake 0.3s ease; }
-.smartnav-hotspot--edit::after {
-  content: '×';
+.smartnav-hotspot--edit:hover { color: var(--color-primary); background: transparent; }
+.smartnav-hotspot--edit:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 8px; }
+
+/* The pin being edited. */
+.smartnav-hotspot--selected { color: var(--color-primary); transform: translate(-50%, -100%) scale(1.2); z-index: 2; }
+.smartnav-hotspot--selected svg { filter: drop-shadow(0 0 0 #fff) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)); }
+
+/* A pin placed but not yet saved. */
+.smartnav-hotspot--pending { color: #d4380d; pointer-events: none; animation: smartnav-pending-drop 0.35s cubic-bezier(.2,.8,.3,1.2); }
+.smartnav-hotspot--pending svg { animation: smartnav-pending-pulse 1.3s ease-in-out infinite; }
+
+/* Destination name above each pin in the editor. */
+.smartnav-hotspot__label {
   position: absolute;
-  top: -6px;
-  right: -2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-error);
-  color: #fff;
-  font-size: 12px;
-  line-height: 16px;
-  text-align: center;
-  opacity: 0;
-  transform: scale(0.6);
-  transition: all 0.15s ease;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(23, 23, 23, 0.82);
+  color: #fafafa;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
-.smartnav-hotspot--edit:hover::after { opacity: 1; transform: scale(1); }
-@keyframes smartnav-edit-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+.smartnav-hotspot--selected .smartnav-hotspot__label { background: var(--color-primary); }
+
+@keyframes smartnav-pending-drop { from { transform: translate(-50%, -160%); opacity: 0; } to { transform: translate(-50%, -100%); opacity: 1; } }
+@keyframes smartnav-pending-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .smartnav-hotspot--pending, .smartnav-hotspot--pending svg { animation: none; } }
 
 .smartnav-hotspot--route { width:52px; height:62px; color:var(--color-terminal-green); background:transparent; filter:drop-shadow(0 2px 6px rgba(0,0,0,.3)); }
 .smartnav-hotspot--route::before { content:''; position:absolute; z-index:-1; width:26px; height:26px; top:18px; border:2px solid rgba(41,122,58,.55); border-radius:50%; animation:smartnav-route-ring 1.7s ease-out infinite; }
