@@ -47,6 +47,18 @@ const panoramaSessionSchema = new mongoose.Schema({
         default: [],
     },
 
+    // Set once the session's photos have been stitched and the panorama saved.
+    // The source photos are deleted at that point, so this is the only record
+    // of what the session produced.
+    panorama: {
+        type: {
+            assetId: { type: mongoose.Schema.Types.ObjectId, ref: "Asset" },
+            path: { type: String },
+            sourceCount: { type: Number },
+        },
+        default: undefined,
+    },
+
     createdAt: {
         type: Date,
         default: Date.now,

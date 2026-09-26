@@ -3,8 +3,11 @@ const path = require("path");
 const { randomUUID } = require("crypto");
 const Project = require("../models/Project");
 const Asset = require("../models/Asset");
+const Scene = require("../models/Scene");
 const PanoramaSession = require("../models/PanoramaSession");
-const { requireId, fail, sendError } = require("../services/integrity");
+const PendingFileDeletion = require("../models/PendingFileDeletion");
+const { requireId, fail, sendError, withProject } = require("../services/integrity");
+const { processPendingFiles } = require("../services/fileCleanup");
 const { validateImage } = require("../middleware/uploadMiddleware");
 const { deriveImageMetadata, removeDerivative } = require("../services/imagePipeline");
 
@@ -226,4 +229,96 @@ const completeSession = async (req, res) => {
     } catch (error) { sendError(res, error); }
 };
 
-module.exports = { createSession, getSession, streamSession, uploadPhoto, completeSession, MAX_PANORAMA_PHOTOS };
+/** Every form a stored reference to an upload can take (relative, bare, absolute URL). */
+function referencesTo(assetPath) {
+    const escaped = assetPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [assetPath, assetPath.replace(/^\//, ""), new RegExp(`^https?://[^/]+${escaped}(?:[?#].*)?$`, "i")];
+}
+
+/**
+ * Called once a stitch has been uploaded as an asset: records the panorama on
+ * the session and deletes the source photos, which are now redundant.
+ *
+ * Safety rules, in order:
+ *  - Owner only. A phone holding the session token can add photos, but only
+ *    the project owner can delete them.
+ *  - The session is closed first, atomically, so a photo still in flight from
+ *    the phone cannot land after the delete list is built and be orphaned.
+ *  - Deletion runs in the project transaction, and the panorama is recorded
+ *    with a conditional write inside it. A second finalize therefore fails
+ *    with 409 and rolls its own deletions back.
+ *  - A source photo already used as a scene image or floor plan is kept and
+ *    reported, never silently removed from under that scene.
+ */
+const finalizeSession = async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (typeof token !== "string" || !/^[0-9a-f-]{36}$/i.test(token)) fail(400, "A valid session token is required.");
+        const panoramaAssetId = String((req.body || {}).panoramaAssetId || "");
+        requireId(panoramaAssetId, "panorama asset ID");
+
+        // No expiry filter: a long stitch may legitimately finish just after the hour.
+        const existing = await PanoramaSession.findOne({ token }).select("projectId panorama").lean();
+        if (!existing) fail(404, "This capture session was not found or has expired.");
+        if (existing.panorama?.assetId) fail(409, "This capture session has already been finalized.");
+
+        const closed = await PanoramaSession.findOneAndUpdate(
+            { token }, { $set: { status: "done" } }, { returnDocument: "after" },
+        );
+        if (!closed) fail(404, "This capture session was not found or has expired.");
+
+        const result = await withProject(closed.projectId, async (project, session) => {
+            const panorama = await Asset.findOne({ _id: panoramaAssetId, projectId: project._id }).session(session);
+            if (!panorama) fail(400, "The panorama must be an asset in this session's project.");
+
+            const sourceIds = closed.photos.map((photo) => String(photo.assetId)).filter((id) => id !== String(panorama._id));
+            const sources = await Asset.find({ _id: { $in: sourceIds }, projectId: project._id }).session(session);
+
+            const doomed = [];
+            const kept = [];
+            for (const asset of sources) {
+                const references = referencesTo(asset.path);
+                const usedByScene = await Scene.exists({ projectId: project._id, image: { $in: references } }).session(session);
+                const usedAsFloorPlan = references.some((ref) => (ref instanceof RegExp ? ref.test(project.floorPlan || "") : ref === project.floorPlan));
+                if (usedByScene || usedAsFloorPlan) {
+                    kept.push({ assetId: String(asset._id), reason: usedByScene ? "used by a scene" : "used as the floor plan" });
+                } else {
+                    doomed.push(asset);
+                }
+            }
+
+            if (doomed.length) {
+                await PendingFileDeletion.insertMany(doomed.flatMap((asset) => [
+                    { filename: asset.filename },
+                    ...(asset.thumbnailFilename ? [{ filename: asset.thumbnailFilename }] : []),
+                ]), { session });
+                await Asset.deleteMany({ _id: { $in: doomed.map((asset) => asset._id) } }, { session });
+            }
+
+            const recorded = await PanoramaSession.updateOne(
+                { token, "panorama.assetId": { $exists: false } },
+                {
+                    $set: { panorama: { assetId: panorama._id, path: panorama.path, sourceCount: sourceIds.length } },
+                    $pull: { photos: { assetId: { $in: doomed.map((asset) => asset._id) } } },
+                },
+                { session },
+            );
+            if (recorded.matchedCount !== 1) fail(409, "This capture session has already been finalized.");
+
+            return {
+                panorama: { assetId: String(panorama._id), path: panorama.path },
+                deleted: doomed.length,
+                kept,
+            };
+        }, { ownerId: req.user.id });
+
+        // Files go only after the commit; failures stay queued for retry.
+        let cleanupPending = false;
+        try { await processPendingFiles(); cleanupPending = !!await PendingFileDeletion.exists({}); }
+        catch (error) { cleanupPending = true; req.log?.error({ err: error }, "Capture cleanup deferred"); }
+
+        res.json({ success: true, data: { ...result, ...(cleanupPending ? { cleanupPending: true } : {}) } });
+    } catch (error) { sendError(res, error); }
+};
+
+module.exports = { createSession, getSession, streamSession, uploadPhoto, completeSession, finalizeSession, MAX_PANORAMA_PHOTOS };

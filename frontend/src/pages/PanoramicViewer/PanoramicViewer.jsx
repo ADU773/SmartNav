@@ -278,7 +278,24 @@ export default function PanoramicViewer() {
       const uploadResult = await UploadService.uploadImage(file, currentProject._id);
       if (uploadResult.success) {
         setResultPreview(getImageUrl(uploadResult.data.path));
-        success('Panorama saved', 'It is now available as an asset — add it to a scene in Scene Builder.');
+        // Only now, with the panorama safely stored, are the source photos
+        // removed — a failed stitch or upload never costs the originals.
+        try {
+          const finalized = await PanoramaService.finalizeSession(token, uploadResult.data._id);
+          const { deleted, kept } = finalized.data;
+          const keptNote = kept.length
+            ? ` ${kept.length} photo${kept.length === 1 ? ' was' : 's were'} kept because ${kept.length === 1 ? 'it is' : 'they are'} already in use.`
+            : '';
+          success(
+            'Panorama saved',
+            `Added to your assets. The ${deleted} source photo${deleted === 1 ? '' : 's'} used to build it ${deleted === 1 ? 'was' : 'were'} removed.${keptNote}`
+          );
+        } catch (finalizeError) {
+          error(
+            'Panorama saved, but the source photos were not removed',
+            `${finalizeError.message} They are still in Assets and can be deleted there.`
+          );
+        }
       }
       // Sensor-only pairs are the ones most likely to still ghost, so they are
       // named rather than buried — retaking those directions is the fix.

@@ -7,6 +7,10 @@ const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const Project = require('../models/Project');
 const Asset = require('../models/Asset');
 const PanoramaSession = require('../models/PanoramaSession');
+const Scene = require('../models/Scene');
+const PendingFileDeletion = require('../models/PendingFileDeletion');
+const fs = require('node:fs/promises');
+const { resolveUploadFile } = require('../services/fileCleanup');
 const User = require('../models/User');
 const { installTestEnv, createTestUser } = require('./helpers/auth.cjs');
 
@@ -18,11 +22,20 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
     let listener;
     t.after(async () => {
         if (listener) await new Promise((resolve) => listener.close(resolve));
+        // Every Asset here lives only in this throwaway database, so its files
+        // are test output: remove them rather than leave them in uploads/.
+        if (mongoose.connection.readyState === 1) {
+            for (const asset of await Asset.find().lean()) {
+                for (const filename of [asset.filename, asset.thumbnailFilename].filter(Boolean)) {
+                    await fs.unlink(resolveUploadFile(filename)).catch((error) => { if (error.code !== 'ENOENT') throw error; });
+                }
+            }
+        }
         await mongoose.disconnect();
         await repl.stop();
     });
     await mongoose.connect(repl.getUri(), { dbName: 'smartnav_panorama_test' });
-    await Promise.all([Project, Asset, PanoramaSession, User].map((model) => model.init()));
+    await Promise.all([Project, Asset, PanoramaSession, User, Scene, PendingFileDeletion].map((model) => model.init()));
 
     const app = express();
     app.use(express.json());
@@ -127,5 +140,97 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
         form.append('metadata', 'not-json');
         const response = await fetch(`${base}/sessions/${token}/photos`, { method: 'POST', body: form });
         assert.equal(response.status, 400);
+    });
+
+    /* ---- finalize: keep the stitched panorama, delete the source photos ---- */
+
+    const openSessionWithPhotos = async (count) => {
+        const created = await (await fetch(`${base}/sessions`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
+        })).json();
+        const token = created.data.token;
+        for (let i = 0; i < count; i += 1) await upload(token, { frameId: `f-${i}`, sequence: i, yaw: i * 30 });
+        const session = await PanoramaSession.findOne({ token }).lean();
+        return { token, photoIds: session.photos.map((photo) => String(photo.assetId)) };
+    };
+    // Stands in for the stitched result the viewer uploads through /api/upload.
+    const makePanoramaAsset = async () => {
+        const filename = `stitched-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+        await fs.writeFile(resolveUploadFile(filename), png);
+        return Asset.create({ projectId: project._id, filename, path: `/uploads/${filename}` });
+    };
+    const finalize = async (token, panoramaAssetId, headers = owner.headers) => {
+        const response = await fetch(`${base}/sessions/${token}/finalize`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ panoramaAssetId }),
+        });
+        return { status: response.status, body: await response.json() };
+    };
+    const fileExists = (filename) => fs.stat(resolveUploadFile(filename)).then(() => true, () => false);
+
+    await t.test('finalize deletes the source photos and their files, and keeps the panorama', async () => {
+        const { token, photoIds } = await openSessionWithPhotos(3);
+        const sources = await Asset.find({ _id: { $in: photoIds } }).lean();
+        assert.equal(sources.length, 3);
+        const panorama = await makePanoramaAsset();
+
+        const result = await finalize(token, String(panorama._id));
+        assert.equal(result.status, 200);
+        assert.equal(result.body.data.deleted, 3);
+        assert.deepEqual(result.body.data.kept, []);
+
+        assert.equal(await Asset.countDocuments({ _id: { $in: photoIds } }), 0);
+        for (const asset of sources) assert.equal(await fileExists(asset.filename), false, `${asset.filename} should be removed from disk`);
+        assert.ok(await Asset.findById(panorama._id));
+        assert.equal(await fileExists(panorama.filename), true);
+
+        const session = await PanoramaSession.findOne({ token }).lean();
+        assert.equal(session.status, 'done');
+        assert.equal(session.photos.length, 0);
+        assert.equal(String(session.panorama.assetId), String(panorama._id));
+        assert.equal(session.panorama.sourceCount, 3);
+
+        // The session is closed: the phone can no longer add to it.
+        assert.equal((await upload(token, { frameId: 'late', sequence: 9 })).status, 400);
+    });
+
+    await t.test('finalize keeps a source photo that a scene already uses', async () => {
+        const { token, photoIds } = await openSessionWithPhotos(2);
+        const used = await Asset.findById(photoIds[0]).lean();
+        await Scene.create({ projectId: project._id, name: 'Uses a raw frame', image: `http://localhost:5000${used.path}` });
+        const panorama = await makePanoramaAsset();
+
+        const result = await finalize(token, String(panorama._id));
+        assert.equal(result.status, 200);
+        assert.equal(result.body.data.deleted, 1);
+        assert.deepEqual(result.body.data.kept, [{ assetId: photoIds[0], reason: 'used by a scene' }]);
+        assert.ok(await Asset.findById(photoIds[0]));
+        assert.equal(await Asset.exists({ _id: photoIds[1] }), null);
+        // The kept photo stays listed on the session; only deleted ones are pulled.
+        const session = await PanoramaSession.findOne({ token }).lean();
+        assert.deepEqual(session.photos.map((photo) => String(photo.assetId)), [photoIds[0]]);
+    });
+
+    await t.test('finalize is owner-only, validates the panorama, and runs once', async () => {
+        const { token, photoIds } = await openSessionWithPhotos(2);
+        const panorama = await makePanoramaAsset();
+        const intruder = await createTestUser({ email: `intruder-${Date.now()}@example.com` });
+
+        // No token, and a signed-in non-owner: nothing is deleted either way.
+        const anonymous = await fetch(`${base}/sessions/${token}/finalize`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panoramaAssetId: String(panorama._id) }),
+        });
+        assert.equal(anonymous.status, 401);
+        assert.equal((await finalize(token, String(panorama._id), intruder.headers)).status, 404);
+
+        // A panorama from another project is refused.
+        const otherProject = await Project.create({ name: 'Other', ownerId: owner.user._id });
+        const foreign = await Asset.create({ projectId: otherProject._id, filename: 'foreign.jpg', path: '/uploads/foreign.jpg' });
+        assert.equal((await finalize(token, String(foreign._id))).status, 400);
+        assert.equal(await Asset.countDocuments({ _id: { $in: photoIds } }), 2);
+
+        assert.equal((await finalize(token, String(panorama._id))).status, 200);
+        const second = await finalize(token, String(panorama._id));
+        assert.equal(second.status, 409);
+        assert.ok(await Asset.findById(panorama._id), 'a repeated finalize must never touch the panorama');
     });
 });

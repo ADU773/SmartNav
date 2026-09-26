@@ -81,6 +81,19 @@ const PanoramaService = {
    * @param {string} token
    * @returns {Promise<object>} { success, data: { status, photos } }
    */
+  /**
+   * After a stitch: records the panorama on the session and deletes the
+   * source photos. Photos already used by a scene or as the floor plan are
+   * kept and listed in `kept`.
+   * @param {string} token
+   * @param {string} panoramaAssetId - the uploaded stitched asset
+   * @returns {Promise<object>} { success, data: { deleted, kept: {assetId, reason}[] } }
+   */
+  async finalizeSession(token, panoramaAssetId) {
+    const response = await apiClient.post(API_ENDPOINTS.PANORAMA_SESSION_FINALIZE(token), { panoramaAssetId });
+    return response.data;
+  },
+
   async completeSession(token) {
     const response = await apiClient.post(API_ENDPOINTS.PANORAMA_SESSION_COMPLETE(token));
     return response.data;

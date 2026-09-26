@@ -63,6 +63,7 @@ export const API_ENDPOINTS = {
   PANORAMA_SESSION_STREAM: (token) => `/api/panorama/sessions/${token}/stream`,
   PANORAMA_SESSION_PHOTOS: (token) => `/api/panorama/sessions/${token}/photos`,
   PANORAMA_SESSION_COMPLETE: (token) => `/api/panorama/sessions/${token}/complete`,
+  PANORAMA_SESSION_FINALIZE: (token) => `/api/panorama/sessions/${token}/finalize`,
 
   /* ---- Auth ---- */
   AUTH_REGISTER: '/api/auth/register',
