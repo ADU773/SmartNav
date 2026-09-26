@@ -7,7 +7,7 @@ const schema = z.object({
     PORT: z.coerce.number().int().positive().default(5000),
     // MONGODB_URI is the name this project has always used; MONGO_URI is
     // accepted as an alias so either spelling works.
-    MONGODB_URI: z.string().min(1, "MONGODB_URI is required (MongoDB connection string)."),
+    MONGODB_URI: z.string({ error: "MONGODB_URI is required (MongoDB connection string)." }).min(1, "MONGODB_URI is required (MongoDB connection string)."),
 
     // Secrets. Refused in production when left at the development default, so a
     // deploy cannot silently ship forgeable tokens.
@@ -24,12 +24,17 @@ const schema = z.object({
     // Optional integrations. Absent means the feature reports itself unavailable.
     GEMINI_API_KEY: z.string().optional(),
     YOLO_API_URL: z.string().url().optional(),
+    // This API's public address, used to build image links for YOLO_API_URL.
+    PUBLIC_API_URL: z.string().url().optional(),
 });
 
 const DEV_SECRET = "development-only-insecure-secret-change-me";
 
 function loadEnv(source = process.env) {
     const candidate = { ...source };
+    // A line left blank in .env (as copied from .env.example) means "not set",
+    // so optional settings stay optional instead of failing URL validation.
+    for (const key of Object.keys(candidate)) if (candidate[key] === "") delete candidate[key];
     candidate.MONGODB_URI ||= candidate.MONGO_URI;
     // Development convenience only: never applied when NODE_ENV=production.
     if (candidate.NODE_ENV !== "production") {

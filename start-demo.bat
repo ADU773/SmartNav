@@ -71,14 +71,15 @@ if "%RUN_MOBILE%"=="1" if not exist "mobile\node_modules" (
 )
 echo  [OK] Packages installed
 
-rem ---- 4. "Where am I?" model ------------------------------------------
-rem  Downloads once (24 MB), verifies its checksum, then reuses the cache.
+rem ---- 4. AI models ----------------------------------------------------
+rem  "Where am I?" (24 MB) and object detection (36 MB). Downloaded once,
+rem  checksum-verified, then reused from the cache.
 call npm --prefix backend run models:fetch --silent >nul 2>nul
 if errorlevel 1 (
-  echo  [!] Could not download the "Where am I?" model. Everything else works;
-  echo      that feature will retry the download on first use.
+  echo  [!] Could not download the AI models. Everything else works;
+  echo      "Where am I?" and object detection retry the download on first use.
 ) else (
-  echo  [OK] "Where am I?" model ready
+  echo  [OK] AI models ready: "Where am I?" and object detection
 )
 
 rem ---- 5. Network address, so a phone can reach the app -----------------

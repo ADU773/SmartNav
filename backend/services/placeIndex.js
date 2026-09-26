@@ -23,7 +23,10 @@ const {
 
 // Rendering samples the panorama per output pixel, so its size barely affects
 // speed, but decoding a 16k-wide panorama to raw pixels would need ~400 MB.
+// Both sides are capped, so a tall or oddly shaped upload stays small too.
 const MAX_PANORAMA_WIDTH = 4096;
+const MAX_PANORAMA_HEIGHT = 2048;
+const MAX_INPUT_PIXELS = 1_000_000_000; // same ceiling as the upload pipeline
 
 /** Local file for a scene image, or null for anything outside this app's uploads. */
 function localFileFor(image) {
@@ -66,8 +69,8 @@ async function indexScene(scene) {
     const file = localFileFor(scene.image);
     if (!file) return { sceneId: String(scene._id), indexed: false, reason: "image is not an uploaded file" };
 
-    const { data, info } = await sharp(file, { limitInputPixels: false })
-        .resize({ width: MAX_PANORAMA_WIDTH, withoutEnlargement: true })
+    const { data, info } = await sharp(file, { limitInputPixels: MAX_INPUT_PIXELS })
+        .resize({ width: MAX_PANORAMA_WIDTH, height: MAX_PANORAMA_HEIGHT, fit: "inside", withoutEnlargement: true })
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
@@ -142,7 +145,7 @@ function ensureProjectIndex(projectId) {
  * shortest edge to 256, centre crop to 224.
  */
 async function photoPixels(buffer) {
-    const { data } = await sharp(buffer, { limitInputPixels: false })
+    const { data } = await sharp(buffer)
         .rotate()
         .resize({ width: RESIZE_SHORT_EDGE, height: RESIZE_SHORT_EDGE, fit: "outside", kernel: "cubic" })
         .resize(INPUT_SIZE, INPUT_SIZE, { fit: "cover", position: "centre" })

@@ -62,6 +62,31 @@ const sceneSchema = new mongoose.Schema({
         default: [],
     },
 
+    // Objects found in the panorama by the detector (services/objectIndex.js).
+    // Written only by the server; the scene update API does not accept it.
+    // Directions use the viewer's convention: yaw right-positive, pitch
+    // down-positive, both in degrees.
+    detections: {
+        type: [{
+            _id: false,
+            label: { type: String, required: true },
+            confidence: { type: Number, default: 0 },
+            yawDeg: { type: Number, default: null },
+            pitchDeg: { type: Number, default: null },
+        }],
+        default: [],
+    },
+
+    // Which model scanned the scene, when, and which image it saw.
+    objectScan: {
+        type: {
+            modelVersion: String,
+            scannedAt: Date,
+            image: String,
+        },
+        default: undefined,
+    },
+
     mapPosition: {
         type: {
             x: { type: Number, min: 0, max: 100 },

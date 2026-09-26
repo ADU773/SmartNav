@@ -95,7 +95,7 @@ export default function AIWorkspace() {
             </div>
             <div className="ai-workspace__status">
               <span>Computer Vision</span>
-              <Tag>Service-ready</Tag>
+              <Tag color="green">Local model</Tag>
             </div>
           </Card>
         </Col>

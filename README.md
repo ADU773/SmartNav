@@ -33,6 +33,7 @@
 | 2026-09-26 | **Redesigned Hotspot Builder:** A three-step guide (pick a scene, click the doorway, choose where it leads); a visible pin where you clicked; choosing the destination by picture; an option to create the way back automatically, facing the opposite direction; an editor for existing connections (label, access type, distance, move, delete); link counts per scene; and a warning listing scenes visitors cannot reach. |
 | 2026-09-26 | **Image Previews When Selecting:** Creating a scene, choosing a hotspot destination and choosing a floor plan now show thumbnails and a large preview instead of a list of file names. |
 | 2026-09-26 | **"Where Am I?" Visual Place Recognition:** A visitor photographs their surroundings and the system identifies which scene they are in and which way they are facing, then turns the 360° view to match and uses it as the route's starting point. Each panorama is indexed as a ring of 24 camera-like views, embedded with the DINOv2 image model on the server. Measured on real photos: 13 of 13 correctly located, with headings within about 6.5°; a photo from a room that was never mapped is reported as "not sure" rather than as a confident wrong answer. |
+| 2026-09-26 | **Object Detection with Directions (YOLOX-S):** Object detection now runs on the SmartNav server itself instead of needing a separate YOLO service. Each panorama is split into 8 camera-like views, YOLOX-S finds the objects in each view, and each object is recorded with the direction it sits in; an object seen in two overlapping views is counted once. The scene page lists the objects found ("laptop ×7"), and clicking one turns the 360° view to face it, cycling through each instance. Object names are added to the scene's tags and given to the AI assistant. Measured on a real classroom panorama: about 1.3 seconds per scan on a laptop CPU, with each object's recorded direction landing on the object. |
 
 ## Main Methodologies Introduced
 
@@ -64,6 +65,7 @@
 | 360° Stitching | Rotation-only camera model, focal-length solve, loop closure |
 | Learned Feature Matching | XFeat (ONNX Runtime Web), ORB fallback |
 | Visual Place Recognition | DINOv2-small (ONNX Runtime, Node.js) + cosine similarity |
+| Object Detection | YOLOX-S (ONNX Runtime, Node.js), 8 views per panorama, cross-view merging |
 | Testing | node:test, Vitest, MongoDB Memory Server |
 | Continuous Integration | GitHub Actions |
 
@@ -71,7 +73,7 @@
 
 ### One-click demo (Windows)
 
-Double-click **start-demo.bat** in the project folder. It checks Node.js and `backend/.env`, installs any missing packages, downloads the "Where am I?" model, starts the backend and frontend in their own windows, waits until both respond, and opens the app at this computer's network address so a phone on the same Wi-Fi can scan the capture QR code. It finishes by printing a suggested demo order.
+Double-click **start-demo.bat** in the project folder. It checks Node.js and `backend/.env`, installs any missing packages, downloads the AI models, starts the backend and frontend in their own windows, waits until both respond, and opens the app at this computer's network address so a phone on the same Wi-Fi can scan the capture QR code. It finishes by printing a suggested demo order.
 
 | Command | What it does |
 |---|---|
@@ -91,7 +93,7 @@ The sections below are the same steps done by hand.
 cd backend
 npm install
 cp .env.example .env        # then fill in MONGODB_URI and the two JWT secrets
-npm run models:fetch        # one-time download of the "Where am I?" model (24 MB, checksum-verified)
+npm run models:fetch        # one-time download of the AI models (60 MB, checksum-verified)
 npm start                   # http://localhost:5000
 ```
 

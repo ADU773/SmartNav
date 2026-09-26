@@ -24,6 +24,6 @@
     "test:integrity": "node --test tests/integrity.test.cjs",
     "test:auth": "node --test tests/auth.test.cjs",
     "migrate:owners": "node scripts/assignProjectOwners.js",
-    "models:fetch": "node -e \"require('./services/placeModel').ensureModelFile().then((f) => console.log('Model ready:', f)).catch((e) => { console.error(e.message); process.exit(1); })\""
+    "models:fetch": "node -e \"Promise.all([require('./services/placeModel').ensureModelFile(), require('./services/objectModel').ensureModelFile()]).then((f) => console.log('Models ready:', f.join(', '))).catch((e) => { console.error(e.message); process.exit(1); })\""
   }
 }

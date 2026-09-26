@@ -81,8 +81,14 @@ const aiChat = async (req, res) => {
       requireId(projectId, "project ID");
       await readableProject(projectId, req.user.id);
     }
-    const scenes = projectId ? await Scene.find({ projectId }).select("name metadata hotspots").lean() : [];
-    const context = scenes.map((s) => `${s.name} (${s.hotspots?.length || 0} connections)`).join(", ") || "No scenes created yet";
+    const scenes = projectId ? await Scene.find({ projectId }).select("name metadata hotspots detections").lean() : [];
+    // Detected objects let the assistant answer questions like "where is the
+    // printer?" from what is actually visible in each panorama.
+    const describe = (s) => {
+      const objects = [...new Set((s.detections || []).map((d) => d.label))];
+      return `${s.name} (${s.hotspots?.length || 0} connections${objects.length ? `; contains: ${objects.join(", ")}` : ""})`;
+    };
+    const context = scenes.map(describe).join("; ") || "No scenes created yet";
     if (process.env.GEMINI_API_KEY) {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `You are SmartNav360's concise navigation assistant. Project scenes: ${context}. User: ${message}` }] }] }) });
       const data = await response.json();

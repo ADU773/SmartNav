@@ -91,6 +91,11 @@ const updateScene = async (req, res) => {
             }
             if (update.image !== undefined) update.image = await validateAssetPath(update.image, current.projectId, session);
             if (update.hotspots !== undefined) await validateHotspots(update.hotspots, current, session);
+            // Detected objects describe the old panorama; drop them with it.
+            if (update.image !== undefined && update.image !== current.image) {
+                current.detections = [];
+                current.objectScan = undefined;
+            }
             current.set(update);
             return current.save({ session });
         }, { ownerId: req.user.id });

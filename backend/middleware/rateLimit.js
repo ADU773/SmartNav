@@ -50,4 +50,11 @@ const locateLimiter = limiter({
     message: "Too many location requests. Try again in a few minutes.",
 });
 
-module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter };
+// Each object scan runs a detector over a dozen views of the panorama.
+const detectLimiter = limiter({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: "Too many object scans. Try again in a few minutes.",
+});
+
+module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter, detectLimiter };
