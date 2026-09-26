@@ -45,6 +45,9 @@ function escapeHtml(text) {
  * @param {number|null} [props.selectedHotspotIndex] - edit mode: highlight this pin
  * @param {{yaw:number, pitch:number}|null} [props.pendingPin] - edit mode: an unsaved pin
  * @param {Map<string,string>} [props.targetNames] - scene id to name, for pin labels
+ * @param {{ yawDeg: number, pitchDeg?: number, sceneId?: string, key: string|number }} [props.lookAt] -
+ *   turns the camera once each time `key` changes, e.g. to face the direction
+ *   a "Where am I?" photo was taken in
  * @param {object} [props.miniMap]
  * @param {string} [props.navigationTargetId]
  * @param {string} [props.navigationTargetName]
@@ -58,6 +61,7 @@ export default function PanoramaViewer({
   selectedHotspotIndex = null,
   pendingPin = null,
   targetNames,
+  lookAt,
   miniMap,
   navigationTargetId,
   navigationTargetName,
@@ -158,6 +162,23 @@ export default function PanoramaViewer({
       viewer.destroy();
     };
   }, [sceneId, sceneImage]);
+
+  /* ---- Camera requests from the parent ---- */
+  // Applied once per request, and only in the scene it was made for, so
+  // walking to another scene and back does not re-apply a stale heading.
+  const appliedLookAtRef = useRef(null);
+  const lookAtKey = lookAt?.key;
+  useEffect(() => {
+    if (!lookAt || lookAtKey === undefined || appliedLookAtRef.current === lookAtKey) return;
+    if (lookAt.sceneId && String(lookAt.sceneId) !== String(sceneId)) return;
+    if (!viewRef.current) return;
+    viewRef.current.setParameters({
+      yaw: (lookAt.yawDeg * Math.PI) / 180,
+      pitch: ((lookAt.pitchDeg || 0) * Math.PI) / 180,
+    });
+    appliedLookAtRef.current = lookAtKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookAtKey, sceneId, sceneImage]);
 
   /* ---- Hotspots: redrawn in place whenever they change ---- */
   const hotspots = scene?.hotspots;

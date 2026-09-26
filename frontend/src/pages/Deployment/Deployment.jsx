@@ -11,6 +11,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import FeatureService from '../../services/feature.service';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
+import LocationIndexCard from '../../components/experience/LocationIndexCard';
 import './Deployment.css';
 
 export default function Deployment() {
@@ -86,6 +87,8 @@ export default function Deployment() {
               <Typography.Paragraph copyable={{ text: shareUrl }}>{shareUrl}</Typography.Paragraph>
             </Card>
           )}
+
+          <LocationIndexCard projectId={currentProject._id} />
         </Card>
       )}
     </div>

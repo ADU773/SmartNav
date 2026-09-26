@@ -1,5 +1,6 @@
 const Scene = require("../models/Scene");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
+const SceneEmbedding = require("../models/SceneEmbedding");
 const { requireId, pickFields, sendError, fail, withProject, withScene, readableProject, pagination, pageMeta, validateAssetPath, validateHotspots } = require("../services/integrity");
 
 const HOTSPOT_FIELDS = ["targetSceneId", "label", "yaw", "pitch", "distance", "access"];
@@ -53,6 +54,7 @@ const deleteScene = async (req, res) => {
                 { sceneId: scene._id }, { "metadata.fromSceneId": { $in: [scene._id, String(scene._id)] } },
             ] }, { session });
             await Scene.deleteOne({ _id: scene._id }, { session });
+            await SceneEmbedding.deleteOne({ sceneId: scene._id }, { session });
             // Images are project-owned reusable assets, not scene-owned files.
         }, { ownerId: req.user.id });
         res.json({ success: true, message: "Scene deleted successfully" });

@@ -20,6 +20,7 @@ import AIService from '../../services/ai.service';
 import FeatureService from '../../services/feature.service';
 import ProjectService from '../../services/project.service';
 import './VirtualExperience.css';
+import WhereAmI from '../../components/experience/WhereAmI';
 
 export default function VirtualExperience() {
   useDocumentTitle('Virtual Experience');
@@ -38,6 +39,8 @@ export default function VirtualExperience() {
   const [detections, setDetections] = useState([]);
   const [sharedProject, setSharedProject] = useState(null);
   const [projectDetails, setProjectDetails] = useState(null);
+  // Set by "Where am I?": the viewer turns to face the way the photo was taken.
+  const [lookAt, setLookAt] = useState(null);
   const shareToken = new URLSearchParams(location.search).get('share');
   const activeProject = sharedProject || currentProject;
   const floorPlan = sharedProject?.floorPlan || projectDetails?.floorPlan || currentProject?.floorPlan;
@@ -107,6 +110,15 @@ export default function VirtualExperience() {
     } catch (error) { setRoute({ error: error.message || 'No route found.', destinationId }); }
   };
 
+  // Relocation, not navigation: the visitor did not walk a connection, so no
+  // navigation event is recorded. The view event fires as usual.
+  const startHere = (sceneId, yawDeg) => {
+    const scene = scenes.find((item) => String(item._id) === String(sceneId));
+    if (!scene) return;
+    setSelectedScene(scene);
+    setLookAt({ sceneId: scene._id, yawDeg, key: Date.now() });
+  };
+
   const clearRoute = () => { setRoute(null); setRouteTarget(undefined); };
   const chooseMapDestination = (sceneId) => findRoute(sceneId);
 
@@ -137,6 +149,13 @@ export default function VirtualExperience() {
         <div className="virtual-experience__sidebar-header">
           <h3>Scenes</h3>
           <Tag>{scenes.length}</Tag>
+        </div>
+        <div className="virtual-experience__where">
+          <WhereAmI
+            projectId={shareToken ? undefined : activeProject?._id}
+            shareToken={shareToken || undefined}
+            onStartHere={startHere}
+          />
         </div>
         <List
           dataSource={scenes}
@@ -169,6 +188,7 @@ export default function VirtualExperience() {
           onNavigate={handleNavigate}
           navigationTargetId={nextRouteSceneId}
           navigationTargetName={nextRouteScene?.name}
+          lookAt={lookAt}
           miniMap={{ floorPlan, scenes, activeSceneId: selectedScene?._id, onSelect: chooseMapDestination, routePath: routeIds, routeDistance: route?.distance, onClearRoute: clearRoute }}
         />
       </main>

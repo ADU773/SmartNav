@@ -1,3 +1,5 @@
 node_modules/
 .env
 uploads/
+# Downloaded ML model weights (see services/placeModel.js)
+.cache/

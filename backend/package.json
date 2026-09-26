@@ -9,6 +9,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.8.1",
     "multer": "^2.2.0",
+    "onnxruntime-node": "^1.30.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "sharp": "^0.35.4",
@@ -22,6 +23,7 @@
     "test": "node --test tests/*.test.cjs",
     "test:integrity": "node --test tests/integrity.test.cjs",
     "test:auth": "node --test tests/auth.test.cjs",
-    "migrate:owners": "node scripts/assignProjectOwners.js"
+    "migrate:owners": "node scripts/assignProjectOwners.js",
+    "models:fetch": "node -e \"require('./services/placeModel').ensureModelFile().then((f) => console.log('Model ready:', f)).catch((e) => { console.error(e.message); process.exit(1); })\""
   }
 }

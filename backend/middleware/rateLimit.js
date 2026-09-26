@@ -42,4 +42,12 @@ const sessionLimiter = limiter({
     message: "Too many capture sessions started. Try again later.",
 });
 
-module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter };
+// Each locate runs a neural network on the server; keep it well away from
+// being usable as a free compute endpoint.
+const locateLimiter = limiter({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    message: "Too many location requests. Try again in a few minutes.",
+});
+
+module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter };

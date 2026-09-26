@@ -65,6 +65,11 @@ export const API_ENDPOINTS = {
   PANORAMA_SESSION_COMPLETE: (token) => `/api/panorama/sessions/${token}/complete`,
   PANORAMA_SESSION_FINALIZE: (token) => `/api/panorama/sessions/${token}/finalize`,
 
+  /* ---- Where am I (visual place recognition) ---- */
+  LOCATE: '/api/locate',
+  LOCATE_INDEX: (projectId) => `/api/locate/projects/${projectId}/index`,
+  LOCATE_STATUS: (projectId) => `/api/locate/projects/${projectId}/status`,
+
   /* ---- Auth ---- */
   AUTH_REGISTER: '/api/auth/register',
   AUTH_LOGIN: '/api/auth/login',

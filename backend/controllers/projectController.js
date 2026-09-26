@@ -3,6 +3,7 @@ const Scene = require("../models/Scene");
 const Asset = require("../models/Asset");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const PendingFileDeletion = require("../models/PendingFileDeletion");
+const SceneEmbedding = require("../models/SceneEmbedding");
 const { requireId, pickFields, sendError, withProject, pagination, pageMeta, validateAssetPath, fail } = require("../services/integrity");
 const { processPendingFiles } = require("../services/fileCleanup");
 
@@ -79,6 +80,7 @@ const deleteProject = async (req, res) => {
                 { projectId: project._id }, { sceneId: { $in: ids } }, { "metadata.fromSceneId": { $in: references } },
             ] }, { session });
             await Scene.deleteMany({ projectId: project._id }, { session });
+            await SceneEmbedding.deleteMany({ projectId: project._id }, { session });
             if (assets.length) {
                 // Queue the derived thumbnails alongside their originals, or
                 // they outlive the project as orphaned files.
