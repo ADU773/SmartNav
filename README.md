@@ -69,6 +69,22 @@
 
 ## Running SmartNav360
 
+### One-click demo (Windows)
+
+Double-click **start-demo.bat** in the project folder. It checks Node.js and `backend/.env`, installs any missing packages, downloads the "Where am I?" model, starts the backend and frontend in their own windows, waits until both respond, and opens the app at this computer's network address so a phone on the same Wi-Fi can scan the capture QR code. It finishes by printing a suggested demo order.
+
+| Command | What it does |
+|---|---|
+| `start-demo.bat` | Start everything and open the app |
+| `start-demo.bat check` | Check the setup without starting anything (run this before the demo) |
+| `start-demo.bat test` | Run the backend and frontend test suites first, then start |
+| `start-demo.bat mobile` | Also start the SmartNav Capture phone app (Expo) |
+| `stop-demo.bat` | Stop the servers and close their windows |
+
+If a phone cannot connect, make sure it is on the same Wi-Fi and that Windows Firewall allows Node.js on Private networks.
+
+The sections below are the same steps done by hand.
+
 ### Backend
 
 ```bash
