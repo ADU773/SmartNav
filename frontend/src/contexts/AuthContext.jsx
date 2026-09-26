@@ -1,25 +1,58 @@
 /**
- * SmartNav360 — Auth Context (Placeholder)
- * Architecture-ready for JWT authentication.
+ * SmartNav360 — Auth Context
+ * Owns the signed-in account and exposes login/register/logout to the app.
  */
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import AuthService from '../services/auth.service';
+import { onSessionChange } from '../services/tokenStore';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => AuthService.getCurrentUser());
   const [loading, setLoading] = useState(false);
+  // True until the stored session has been checked against the server, so the
+  // router does not bounce a signed-in user to /login during that first call.
+  const [initializing, setInitializing] = useState(() => AuthService.isAuthenticated());
+
+  useEffect(() => {
+    // The axios interceptor clears the store when a refresh finally fails;
+    // mirror that here so the UI signs out without a reload.
+    return onSessionChange((stored) => setUser(stored));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!AuthService.isAuthenticated()) {
+      setInitializing(false);
+      return () => { cancelled = true; };
+    }
+    AuthService.fetchCurrentUser()
+      .then((result) => {
+        if (cancelled) return;
+        setUser(result.success ? result.data : null);
+      })
+      .finally(() => !cancelled && setInitializing(false));
+    return () => { cancelled = true; };
+  }, []);
 
   const login = useCallback(async (credentials) => {
     setLoading(true);
     try {
       const result = await AuthService.login(credentials);
-      if (result.success) {
-        setUser(result.data);
-        return result;
-      }
+      if (result.success) setUser(result.data);
+      return result;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const register = useCallback(async (details) => {
+    setLoading(true);
+    try {
+      const result = await AuthService.register(details);
+      if (result.success) setUser(result.data);
       return result;
     } finally {
       setLoading(false);
@@ -31,13 +64,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const isAuthenticated = !!user;
-
   const value = {
     user,
     loading,
-    isAuthenticated,
+    initializing,
+    isAuthenticated: !!user,
     login,
+    register,
     logout,
   };
 
@@ -49,7 +82,7 @@ export function AuthProvider({ children }) {
 }
 
 /**
- * @returns {{ user, loading, isAuthenticated, login, logout }}
+ * @returns {{ user, loading, initializing, isAuthenticated, login, register, logout }}
  */
 export function useAuth() {
   const context = useContext(AuthContext);

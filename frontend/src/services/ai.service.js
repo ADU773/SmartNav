@@ -35,8 +35,21 @@ const AIService = {
    * Get optimal navigation path between scenes.
    * Future: apiClient.get(API_ENDPOINTS.AI_NAVIGATION, { params })
    */
-  async getNavigationPath(projectId, fromSceneId, toSceneId) {
-    const response = await apiClient.get(API_ENDPOINTS.NAVIGATION_PATH, { params: { projectId, fromSceneId, toSceneId } });
+  /**
+   * @param {string[]} [avoid] - access modes to exclude entirely, e.g.
+   *   ['stairs','escalator'] for a step-free route. Excluded modes are removed
+   *   from the graph, so the result is genuinely step-free rather than merely
+   *   cheaper; the request 404s when no such route exists.
+   */
+  async getNavigationPath(projectId, fromSceneId, toSceneId, avoid = []) {
+    const response = await apiClient.get(API_ENDPOINTS.NAVIGATION_PATH, {
+      params: {
+        projectId,
+        fromSceneId,
+        toSceneId,
+        ...(avoid.length ? { avoid: avoid.join(',') } : {}),
+      },
+    });
     return response.data;
   },
 };

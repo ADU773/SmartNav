@@ -12,6 +12,14 @@ import FeatureService from '../../services/feature.service';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import './Analytics.css';
 
+/** Renders a millisecond duration as a short human string. */
+function formatDwell(ms) {
+  if (!ms) return '—';
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
 const STAT_TILES = [
   { key: 'visitors', title: 'Visitors', icon: TeamOutlined, accent: 'primary', getValue: (data) => data?.visitors || 0 },
   { key: 'sceneViews', title: 'Scene views', icon: EyeOutlined, accent: 'success', getValue: (data) => data?.sceneViews?.reduce((sum, item) => sum + item.views, 0) || 0 },
@@ -66,8 +74,43 @@ export default function Analytics() {
               columns={[
                 { title: 'Scene', dataIndex: 'name' },
                 { title: 'Views', dataIndex: 'views', render: (value) => <Tag>{value}</Tag> },
+                {
+                  title: 'Avg. dwell',
+                  dataIndex: 'averageDwellMs',
+                  // Measured as the gap to the visitor's next event in the same
+                  // session; the last view of a session has no successor, so it
+                  // is excluded rather than counted as zero.
+                  render: (value) => formatDwell(value),
+                },
               ]}
               locale={{ emptyText: 'Open the Virtual Experience to begin collecting views.' }}
+            />
+          </Card>
+
+          <Card title="Most walked connections" style={{ marginTop: 16 }} loading={loading}>
+            <Table
+              rowKey={(row) => `${row.from}-${row.to}`}
+              pagination={false}
+              dataSource={data?.transitions || []}
+              columns={[
+                { title: 'From', dataIndex: 'fromName' },
+                { title: 'To', dataIndex: 'toName' },
+                { title: 'Times walked', dataIndex: 'count', render: (value) => <Tag>{value}</Tag> },
+              ]}
+              locale={{ emptyText: 'No navigation between scenes recorded yet.' }}
+            />
+          </Card>
+
+          <Card title="Activity by day" style={{ marginTop: 16 }} loading={loading}>
+            <Table
+              rowKey="date"
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              dataSource={data?.timeline || []}
+              columns={[
+                { title: 'Date', dataIndex: 'date' },
+                { title: 'Events', dataIndex: 'count' },
+              ]}
+              locale={{ emptyText: 'No activity recorded yet.' }}
             />
           </Card>
         </>

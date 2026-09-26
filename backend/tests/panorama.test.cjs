@@ -7,6 +7,10 @@ const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const Project = require('../models/Project');
 const Asset = require('../models/Asset');
 const PanoramaSession = require('../models/PanoramaSession');
+const User = require('../models/User');
+const { installTestEnv, createTestUser } = require('./helpers/auth.cjs');
+
+installTestEnv();
 
 // Always isolated: never uses MONGODB_URI or the application's .env database.
 test('panorama session upload metadata, idempotency and completion', { timeout: 240000 }, async (t) => {
@@ -18,7 +22,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
         await repl.stop();
     });
     await mongoose.connect(repl.getUri(), { dbName: 'smartnav_panorama_test' });
-    await Promise.all([Project, Asset, PanoramaSession].map((model) => model.init()));
+    await Promise.all([Project, Asset, PanoramaSession, User].map((model) => model.init()));
 
     const app = express();
     app.use(express.json());
@@ -39,11 +43,14 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
         return { status: response.status, body: await response.json() };
     };
 
-    const project = await Project.create({ name: 'Metadata Test Project' });
+    // Opening a session is owner-only; everything after it is authorised by
+    // the session token alone, exactly as the phone uses it.
+    const owner = await createTestUser({ email: 'panorama-owner@example.com' });
+    const project = await Project.create({ name: 'Metadata Test Project', ownerId: owner.user._id });
 
     await t.test('browser upload with no metadata still works', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         const result = await upload(token);
@@ -54,7 +61,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
 
     await t.test('native upload stores validated frame metadata', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         const result = await upload(token, { frameId: 'frame-1', sequence: 0, yaw: 90, pitch: 1.2, roll: -0.5 });
@@ -67,7 +74,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
 
     await t.test('retrying the same frameId is idempotent: no duplicate photo or Asset', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         await upload(token, { frameId: 'dup-frame', sequence: 0 });
@@ -81,7 +88,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
 
     await t.test('concurrent retries of the same frameId still produce exactly one photo', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         const results = await Promise.all([
@@ -96,7 +103,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
 
     await t.test('uploads are rejected after completion, and completion is idempotent', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         await upload(token, { frameId: 'f1', sequence: 0 });
@@ -112,7 +119,7 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
 
     await t.test('rejects malformed metadata', async () => {
         const created = await (await fetch(`${base}/sessions`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: project._id }),
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...owner.headers }, body: JSON.stringify({ projectId: project._id }),
         })).json();
         const token = created.data.token;
         const form = new FormData();

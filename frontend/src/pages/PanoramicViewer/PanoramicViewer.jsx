@@ -4,7 +4,7 @@
  * they arrive, then stitches them into one panorama with OpenCV.js.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Collapse, Descriptions, Empty, Image, Progress, Table } from 'antd';
 import { QRCodeSVG } from 'qrcode.react';
 import { CameraOutlined, CopyOutlined, MergeCellsOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -20,8 +20,6 @@ import { ROUTES } from '../../constants/routes';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import EmptyState from '../../components/common/EmptyState';
 import './PanoramicViewer.css';
-
-const POLL_INTERVAL_MS = 2500;
 
 const STAGE_LABELS = {
   'loading-photo': 'Loading photos…',
@@ -178,24 +176,35 @@ export default function PanoramicViewer() {
   const [stitchDetail, setStitchDetail] = useState(null);
   const [stitchReport, setStitchReport] = useState(null);
   const [resultPreview, setResultPreview] = useState(null);
-  const pollRef = useRef(null);
 
+  // Live updates over SSE. One held connection replaces a request every 2.5s
+  // per open viewer, and photos appear as soon as the phone uploads them.
   useEffect(() => {
     if (!token) return undefined;
-    const poll = async () => {
-      try {
-        const result = await PanoramaService.getSession(token);
-        if (result.success) {
-          setPhotos(result.data.photos || []);
-          setSessionStatus(result.data.status);
-        }
-      } catch {
-        // Transient network errors shouldn't stop the poll loop.
+    let cancelled = false;
+
+    // One immediate read so the card is populated before the first event.
+    PanoramaService.getSession(token)
+      .then((result) => {
+        if (cancelled || !result.success) return;
+        setPhotos(result.data.photos || []);
+        setSessionStatus(result.data.status);
+      })
+      .catch(() => {});
+
+    const unsubscribe = PanoramaService.subscribe(
+      token,
+      (data) => {
+        if (cancelled) return;
+        setPhotos(data.photos || []);
+        setSessionStatus(data.status);
+      },
+      (event) => {
+        if (event?.expired && !cancelled) setSessionStatus('expired');
       }
-    };
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
+    );
+
+    return () => { cancelled = true; unsubscribe(); };
   }, [token]);
 
   // Embed the backend API base whenever it is reachable from another device.
@@ -328,9 +337,13 @@ export default function PanoramicViewer() {
               Copy link
             </Button>
             <p className="panoramic-viewer__hint">
-              {sessionStatus === 'done'
-                ? 'The phone marked this session as done.'
-                : 'Waiting for photos — this page updates automatically.'}
+              {sessionStatus === 'done' && 'The phone marked this session as done.'}
+              {sessionStatus === 'expired' && 'This session expired. Start a new one.'}
+              {sessionStatus !== 'done' && sessionStatus !== 'expired' && (
+                photos.length > 0
+                  ? `${photos.length} photo${photos.length === 1 ? '' : 's'} received — keep going, or stitch now.`
+                  : 'Waiting for photos — this page updates live.'
+              )}
             </p>
             {!API_BASE_IS_SHAREABLE && (
               <p className="panoramic-viewer__hint">

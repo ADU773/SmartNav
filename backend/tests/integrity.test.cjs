@@ -11,8 +11,12 @@ const Scene = require('../models/Scene');
 const Asset = require('../models/Asset');
 const AnalyticsEvent = require('../models/AnalyticsEvent');
 const PendingFileDeletion = require('../models/PendingFileDeletion');
+const User = require('../models/User');
 const { processPendingFiles, resolveUploadFile } = require('../services/fileCleanup');
 const { transaction } = require('../services/integrity');
+const { installTestEnv, createTestUser } = require('./helpers/auth.cjs');
+
+installTestEnv();
 
 // Always isolated: never uses MONGODB_URI or the application's .env database.
 test('entity integrity against a real isolated MongoDB replica set', { timeout: 240000 }, async (t) => {
@@ -27,7 +31,7 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         for (const filename of files) await fs.unlink(resolveUploadFile(filename)).catch((error) => { if (error.code !== 'ENOENT') throw error; });
     });
     await mongoose.connect(repl.getUri(), { dbName: 'smartnav_integrity_test' });
-    const models = [Project, Scene, Asset, AnalyticsEvent, PendingFileDeletion];
+    const models = [Project, Scene, Asset, AnalyticsEvent, PendingFileDeletion, User];
     await Promise.all(models.map((model) => model.init()));
     const app = express();
     app.use(express.json());
@@ -39,10 +43,22 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
     listener = app.listen(0, '127.0.0.1');
     await new Promise((resolve) => listener.once('listening', resolve));
     const base = `http://127.0.0.1:${listener.address().port}/api`;
-    const request = async (method, url, data) => {
-        const response = await fetch(base + url, { method, headers: { 'Content-Type': 'application/json' }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
+
+    // Every route below is owner-scoped now, so the suite runs as a real
+    // signed-in account. `other` exists to prove cross-tenant isolation.
+    const owner = await createTestUser({ email: 'owner@example.com' });
+    const other = await createTestUser({ email: 'intruder@example.com' });
+
+    const requestAs = (auth) => async (method, url, data) => {
+        const response = await fetch(base + url, {
+            method,
+            headers: { 'Content-Type': 'application/json', ...auth.headers },
+            ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+        });
         return { status: response.status, body: await response.json() };
     };
+    const request = requestAs(owner);
+    const requestAsIntruder = requestAs(other);
     const missing = () => String(new mongoose.Types.ObjectId());
     const makeAsset = async (projectId) => {
         const filename = `integrity-test-${randomUUID()}.png`;
@@ -52,9 +68,10 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         return Asset.create({ projectId, filename, path: `/uploads/${filename}` });
     };
     const fixture = async () => {
-        for (const model of models) await model.deleteMany({});
-        const p = await Project.create({ name: 'Project P', published: true, shareToken: randomUUID() });
-        const q = await Project.create({ name: 'Project Q' });
+        // Users are recreated per fixture below, so exclude them from the wipe.
+        for (const model of models.filter((model) => model !== User)) await model.deleteMany({});
+        const p = await Project.create({ name: 'Project P', ownerId: owner.user._id, published: true, shareToken: randomUUID().replace(/-/g, '') });
+        const q = await Project.create({ name: 'Project Q', ownerId: owner.user._id });
         const asset = await makeAsset(p._id);
         const otherAsset = await makeAsset(q._id);
         const a = await Scene.create({ projectId: p._id, name: 'A', image: asset.path });
@@ -241,7 +258,7 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64');
         form.append('image', new File([png], 'race.png', { type: 'image/png' }));
         const [uploadResponse, deletion] = await Promise.all([
-            fetch(`${base}/upload`, { method: 'POST', body: form }), request('DELETE', `/projects/${p.id}`),
+            fetch(`${base}/upload`, { method: 'POST', body: form, headers: owner.headers }), request('DELETE', `/projects/${p.id}`),
         ]);
         const result = await uploadResponse.json();
         assert.ok([200, 404].includes(uploadResponse.status));
@@ -249,6 +266,99 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         assert.equal(deletion.status, 200);
         assert.equal(await Asset.countDocuments({ projectId: p.id }), 0);
         if (result.data) await assert.rejects(fs.stat(resolveUploadFile(result.data.filename)), { code: 'ENOENT' });
+    });
+
+    await t.test('another account cannot read or modify a project it does not own', async () => {
+        const { p, a, asset } = await fixture();
+        // Every cross-tenant attempt must look exactly like "does not exist",
+        // so ownership is never leaked through a 403 vs 404 distinction.
+        assert.equal((await requestAsIntruder('GET', `/projects/${p.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('PUT', `/projects/${p.id}`, { name: 'Stolen' })).status, 404);
+        assert.equal((await requestAsIntruder('DELETE', `/projects/${p.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('GET', `/scenes/${a.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('PUT', `/scenes/${a.id}`, { name: 'Stolen' })).status, 404);
+        assert.equal((await requestAsIntruder('DELETE', `/scenes/${a.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('GET', `/scenes?projectId=${p.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('POST', '/scenes', { projectId: p.id, name: 'Injected' })).status, 404);
+        assert.equal((await requestAsIntruder('GET', `/upload?projectId=${p.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('DELETE', `/upload/${asset.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('GET', `/analytics/projects/${p.id}`)).status, 404);
+        assert.equal((await requestAsIntruder('POST', `/projects/${p.id}/publish`)).status, 404);
+        assert.equal((await requestAsIntruder('GET', `/projects/${p.id}/export`)).status, 404);
+        // Nothing was actually changed by any of the above.
+        assert.ok(await Project.findById(p.id));
+        assert.equal((await Project.findById(p.id)).name, 'Project P');
+        assert.ok(await Scene.findById(a.id));
+        assert.ok(await Asset.findById(asset.id));
+        // The intruder's own project list stays empty.
+        assert.deepEqual((await requestAsIntruder('GET', '/projects')).body.data, []);
+    });
+
+    await t.test('an unauthenticated request reaches nothing except the public share link', async () => {
+        const { p, a } = await fixture();
+        const anon = async (method, url, data) => {
+            const response = await fetch(base + url, { method, headers: { 'Content-Type': 'application/json' }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
+            return { status: response.status, body: await response.json() };
+        };
+        for (const [method, url] of [
+            ['GET', '/projects'], ['POST', '/projects'], ['GET', `/projects/${p.id}`],
+            ['PUT', `/projects/${p.id}`], ['DELETE', `/projects/${p.id}`],
+            ['GET', `/scenes?projectId=${p.id}`], ['POST', '/scenes'], ['GET', `/scenes/${a.id}`],
+            ['GET', `/upload?projectId=${p.id}`],
+            ['GET', `/analytics/projects/${p.id}`], ['GET', '/navigation/path'], ['POST', '/ai/chat'],
+        ]) {
+            assert.equal((await anon(method, url)).status, 401, `${method} ${url} must require authentication`);
+        }
+        // The share token is the one deliberate public read path.
+        const shared = await anon('GET', `/published/${p.shareToken}`);
+        assert.equal(shared.status, 200);
+        assert.equal(shared.body.data.project.name, 'Project P');
+        // ...and it must not expose who owns the project.
+        assert.equal(shared.body.data.project.ownerId, undefined);
+        assert.equal((await anon('GET', '/published/not-a-real-token')).status, 404);
+    });
+
+    await t.test('routes avoid stairs on request and weight them when not avoided', async () => {
+        const { p, a, b } = await fixture();
+        // a -> b directly by stairs, and a -> detour -> b on the flat.
+        const detour = await Scene.create({ projectId: p._id, name: 'Detour' });
+        await Scene.updateOne({ _id: a.id }, { $set: { hotspots: [
+            { targetScene: b._id, distance: 1, access: 'stairs' },
+            { targetScene: detour._id, distance: 2, access: 'flat' },
+        ] } });
+        await Scene.updateOne({ _id: detour._id }, { $set: { hotspots: [{ targetScene: b._id, distance: 2, access: 'flat' }] } });
+
+        const direct = await request('GET', `/navigation/path?projectId=${p.id}&fromSceneId=${a.id}&toSceneId=${b.id}`);
+        assert.equal(direct.status, 200);
+        assert.deepEqual(direct.body.data.path.map((step) => step.name), ['A', 'B']);
+
+        const stepFree = await request('GET', `/navigation/path?projectId=${p.id}&fromSceneId=${a.id}&toSceneId=${b.id}&avoid=stairs`);
+        assert.equal(stepFree.status, 200);
+        assert.deepEqual(stepFree.body.data.path.map((step) => step.name), ['A', 'Detour', 'B']);
+        assert.ok(stepFree.body.data.path.every((step) => step.access !== 'stairs'));
+
+        // With the only flat detour removed, a step-free route no longer exists.
+        await Scene.updateOne({ _id: detour._id }, { $set: { hotspots: [] } });
+        const impossible = await request('GET', `/navigation/path?projectId=${p.id}&fromSceneId=${a.id}&toSceneId=${b.id}&avoid=stairs`);
+        assert.equal(impossible.status, 404);
+        assert.match(impossible.body.message, /avoiding stairs/);
+
+        assert.equal((await request('GET', `/navigation/path?projectId=${p.id}&fromSceneId=${a.id}&toSceneId=${b.id}&avoid=escalatorz`)).status, 400);
+    });
+
+    await t.test('list endpoints paginate instead of returning everything', async () => {
+        const { p } = await fixture();
+        await Scene.deleteMany({ projectId: p._id });
+        await Scene.insertMany(Array.from({ length: 7 }, (_, i) => ({ projectId: p._id, name: `Scene ${i}` })));
+        const firstPage = await request('GET', `/scenes?projectId=${p.id}&limit=3`);
+        assert.equal(firstPage.status, 200);
+        assert.equal(firstPage.body.data.length, 3);
+        assert.deepEqual(firstPage.body.meta, { page: 1, limit: 3, total: 7, pages: 3, hasMore: true });
+        const lastPage = await request('GET', `/scenes?projectId=${p.id}&limit=3&page=3`);
+        assert.equal(lastPage.body.data.length, 1);
+        assert.equal(lastPage.body.meta.hasMore, false);
+        // An absurd limit is clamped rather than honoured.
+        assert.equal((await request('GET', `/scenes?projectId=${p.id}&limit=99999`)).body.meta.limit, 200);
     });
 
     await t.test('unsupported transactions fail closed with a setup error', async (sub) => {

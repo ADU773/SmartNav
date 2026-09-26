@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  # A new push to the same branch cancels the run already in flight.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      # The suite spins up its own in-memory replica set; these only satisfy
+      # the boot-time environment validation.
+      MONGODB_URI: mongodb://127.0.0.1:27017/smartnav-ci
+      JWT_ACCESS_SECRET: ci-access-secret-that-is-long-enough-0000000
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-long-enough-000000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # The upload suite drives the real frontend service through Vite's SSR
+      # loader, so both dependency trees are required.
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      # mongodb-memory-server downloads a server binary on first use; caching it
+      # keeps later runs from re-downloading ~100 MB.
+      - name: Cache MongoDB binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-8.0.17
+
+      - name: Run backend tests
+        run: npm test --prefix backend
+
+  frontend:
+    name: Frontend lint, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix frontend
+
+      - name: Lint
+        run: npm run lint --prefix frontend
+
+      - name: Unit tests
+        run: npm run test --prefix frontend
+
+      - name: Build
+        run: npm run build --prefix frontend
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Advisory: a newly published vulnerability should not block an unrelated
+      # PR, but it must be visible in the run log.
+      - name: Audit backend
+        run: npm audit --prefix backend --audit-level=high || true
+      - name: Audit frontend
+        run: npm audit --prefix frontend --audit-level=high || true

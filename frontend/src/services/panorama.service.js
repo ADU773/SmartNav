@@ -4,9 +4,36 @@
  */
 
 import apiClient from './api';
-import { API_ENDPOINTS } from '../constants/api';
+import { API_BASE_URL, API_ENDPOINTS } from '../constants/api';
 
 const PanoramaService = {
+  /**
+   * Subscribes to a session's live updates over server-sent events, replacing
+   * a polling loop. The session token in the URL is the credential, so no
+   * Authorization header is needed (EventSource cannot set one anyway).
+   *
+   * @param {string} token
+   * @param {(data: { status: string, photos: object[], expiresAt: string }) => void} onUpdate
+   * @param {(error: Event|{ expired: true }) => void} [onError]
+   * @returns {() => void} unsubscribe
+   */
+  subscribe(token, onUpdate, onError) {
+    const source = new EventSource(`${API_BASE_URL}${API_ENDPOINTS.PANORAMA_SESSION_STREAM(token)}`);
+    source.onmessage = (event) => {
+      try {
+        onUpdate(JSON.parse(event.data));
+      } catch {
+        // A malformed frame should not tear down the stream.
+      }
+    };
+    source.addEventListener('expired', () => {
+      onError?.({ expired: true });
+      source.close();
+    });
+    source.onerror = (event) => onError?.(event);
+    return () => source.close();
+  },
+
   /**
    * Start a new capture session scoped to a project.
    * @param {string} projectId

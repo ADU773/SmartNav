@@ -32,10 +32,10 @@ export default function AIWorkspace() {
           { role: 'assistant', content: result.data.reply },
         ]);
       }
-    } catch {
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' },
+        { role: 'assistant', content: err.message || 'Sorry, an error occurred. Please try again.' },
       ]);
     } finally {
       setLoading(false);

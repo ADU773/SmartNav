@@ -1,11 +1,10 @@
 /**
  * SmartNav360 — Login Page
- * Professional login page with placeholder authentication.
  */
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, Form, Input, Button, Checkbox, Divider } from 'antd';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Card, Form, Input, Button, Divider } from 'antd';
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -18,9 +17,13 @@ export default function Login() {
   useDocumentTitle('Sign In');
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const { success, error } = useNotification();
   const [loading, setLoading] = useState(false);
+
+  // ProtectedRoute records where the visitor was headed before the redirect.
+  const destination = location.state?.from || '/';
 
   const handleSubmit = async (values) => {
     setLoading(true);
@@ -28,12 +31,12 @@ export default function Login() {
       const result = await login(values);
       if (result.success) {
         success(MESSAGES.LOGIN_SUCCESS);
-        navigate('/');
+        navigate(destination, { replace: true });
       } else {
-        error(MESSAGES.LOGIN_ERROR);
+        error(result.message || MESSAGES.LOGIN_ERROR);
       }
-    } catch {
-      error(MESSAGES.LOGIN_ERROR);
+    } catch (err) {
+      error(err.message || MESSAGES.LOGIN_ERROR);
     } finally {
       setLoading(false);
     }
@@ -52,7 +55,6 @@ export default function Login() {
           layout="vertical"
           onFinish={handleSubmit}
           requiredMark={false}
-          initialValues={{ remember: true }}
         >
           <Form.Item
             name="email"
@@ -81,13 +83,6 @@ export default function Login() {
             />
           </Form.Item>
 
-          <div className="login__options">
-            <Form.Item name="remember" valuePropName="checked" noStyle>
-              <Checkbox>Remember me</Checkbox>
-            </Form.Item>
-            <a href="#" className="login__forgot">Forgot password?</a>
-          </div>
-
           <Form.Item style={{ marginTop: 24 }}>
             <Button
               type="primary"
@@ -102,11 +97,11 @@ export default function Login() {
         </Form>
 
         <Divider plain>
-          <span className="login__divider-text">Authentication backend pending</span>
+          <span className="login__divider-text">New here?</span>
         </Divider>
 
         <p className="login__note">
-          Authentication is not yet connected to the backend. Any valid email and password will work for now.
+          <Link to="/register">Create an account</Link> — the first account registered becomes the administrator.
         </p>
       </Card>
     </div>

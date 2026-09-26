@@ -1,65 +1,52 @@
-
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
-const mongoose = require("mongoose");
 require("dotenv").config();
 
-const sceneRoutes = require("./routes/sceneRoutes");
+const mongoose = require("mongoose");
+const runtime = require("./config/runtime");
+const { createLogger } = require("./config/logger");
 const connectDB = require("./config/db");
-const projectRoutes = require("./routes/projectRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
-const featureRoutes = require("./routes/featureRoutes");
-const visionRoutes = require("./routes/visionRoutes");
-const panoramaRoutes = require("./routes/panoramaRoutes");
-
-const app = express();
-
+const { createApp } = require("./app");
 const { processPendingFiles } = require("./services/fileCleanup");
+
+// Validate the environment before anything else touches it, so a missing
+// secret or connection string fails here with a readable message.
+let env;
+try {
+    env = runtime.init();
+} catch (error) {
+    console.error(error.message);
+    process.exit(1);
+}
+
+const logger = createLogger(env);
+const app = createApp(env, logger);
+
 let cleaningFiles = false;
 const retryFileCleanup = async () => {
     if (cleaningFiles || mongoose.connection.readyState !== 1) return;
     cleaningFiles = true;
     try { await processPendingFiles(); }
-    catch (error) { console.error("Upload cleanup deferred:", error.message); }
+    catch (error) { logger.error({ err: error }, "Upload cleanup deferred"); }
     finally { cleaningFiles = false; }
 };
-connectDB().then(retryFileCleanup);
+
+connectDB().then(retryFileCleanup).catch((error) => {
+    logger.error({ err: error }, "Initial database connection failed");
+});
 setInterval(retryFileCleanup, 60000).unref();
 
-app.use(cors());
-app.use(express.json());
-app.use("/api", (req, res, next) => {
-    if (mongoose.connection.readyState !== 1) {
-        return res.status(503).json({
-            success: false,
-            message: "The database is reconnecting. Check MongoDB Atlas Network Access, then try again in a moment."
+const server = app.listen(env.PORT, () => {
+    logger.info({ port: env.PORT, env: env.NODE_ENV }, "SmartNav360 backend listening");
+});
+
+// Finish in-flight requests before exiting so a deploy does not drop uploads.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+        logger.info({ signal }, "Shutting down");
+        server.close(() => {
+            mongoose.connection.close(false).finally(() => process.exit(0));
         });
-    }
-    next();
-});
-app.use("/api/projects", projectRoutes);
-app.use("/api/scenes", sceneRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api", featureRoutes);
-app.use("/api/vision", visionRoutes);
-app.use("/api/panorama", panoramaRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+        setTimeout(() => process.exit(1), 10000).unref();
+    });
+}
 
-app.use((error, req, res, next) => {
-    if (error instanceof require("multer").MulterError) {
-        return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 500 MB or smaller." : error.message });
-    }
-    if (error) return res.status(400).json({ success: false, message: error.message || "Upload failed." });
-    next();
-});
-
-app.get("/", (req, res) => {
-    res.send("SmartNav360 Backend Running");
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+module.exports = { app, server };

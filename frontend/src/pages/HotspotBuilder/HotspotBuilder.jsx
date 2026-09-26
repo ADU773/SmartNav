@@ -68,7 +68,7 @@ export default function HotspotBuilder() {
 
   const handleConnect = async (values) => {
     try {
-      const { targetSceneId, label, distance } = values;
+      const { targetSceneId, label, distance, access } = values;
 
       const result = await SceneService.connectScenes(
         selectedScene._id,
@@ -78,6 +78,7 @@ export default function HotspotBuilder() {
           yaw: Number.isFinite(clickedCoordinates?.yaw) ? clickedCoordinates.yaw : 0,
           pitch: Number.isFinite(clickedCoordinates?.pitch) ? clickedCoordinates.pitch : 0,
           distance: Number.isFinite(distance) ? distance : 0,
+          access: access || 'flat',
         }
       );
       if (result.success) {

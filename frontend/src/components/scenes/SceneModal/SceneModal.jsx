@@ -69,7 +69,7 @@ export default function SceneModal({ open, onClose, onSubmit, projectId, assets 
     optionFilterProp="label"
     options={assets.map((asset) => ({
       value: asset.path || asset.filename,
-      label: asset.filename || asset.path,
+      label: asset.originalName || asset.filename || asset.path,
     }))}
   />
 </Form.Item>

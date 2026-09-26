@@ -1,4 +1,7 @@
 const router = require("express").Router();
 const { detectObjects } = require("../controllers/visionController");
-router.post("/detect", detectObjects);
+const { requireAuth } = require("../middleware/authMiddleware");
+
+router.post("/detect", requireAuth, detectObjects);
+
 module.exports = router;
