@@ -61,6 +61,9 @@ function loadSession() {
         sessionPromise = (async () => {
             const ort = require("onnxruntime-node");
             const file = await ensureModelFile();
+            // CPU only, on purpose: this int8 model crashes the whole process
+            // under DirectML (measured), and takes about 20 ms per view on the
+            // CPU anyway.
             const session = await ort.InferenceSession.create(file, { graphOptimizationLevel: "all" });
             return { ort, session };
         })().catch((error) => {

@@ -33,7 +33,7 @@
 | 2026-09-26 | **Redesigned Hotspot Builder:** A three-step guide (pick a scene, click the doorway, choose where it leads); a visible pin where you clicked; choosing the destination by picture; an option to create the way back automatically, facing the opposite direction; an editor for existing connections (label, access type, distance, move, delete); link counts per scene; and a warning listing scenes visitors cannot reach. |
 | 2026-09-26 | **Image Previews When Selecting:** Creating a scene, choosing a hotspot destination and choosing a floor plan now show thumbnails and a large preview instead of a list of file names. |
 | 2026-09-26 | **"Where Am I?" Visual Place Recognition:** A visitor photographs their surroundings and the system identifies which scene they are in and which way they are facing, then turns the 360° view to match and uses it as the route's starting point. Each panorama is indexed as a ring of 24 camera-like views, embedded with the DINOv2 image model on the server. Measured on real photos: 13 of 13 correctly located, with headings within about 6.5°; a photo from a room that was never mapped is reported as "not sure" rather than as a confident wrong answer. |
-| 2026-09-26 | **Object Detection with Directions (YOLOX-S):** Object detection now runs on the SmartNav server itself instead of needing a separate YOLO service. Each panorama is split into 8 camera-like views, YOLOX-S finds the objects in each view, and each object is recorded with the direction it sits in; an object seen in two overlapping views is counted once. The scene page lists the objects found ("laptop ×7"), and clicking one turns the 360° view to face it, cycling through each instance. Object names are added to the scene's tags and given to the AI assistant. Measured on a real classroom panorama: about 1.3 seconds per scan on a laptop CPU, with each object's recorded direction landing on the object. |
+| 2026-09-26 | **Object Detection with Directions (YOLOX-S):** Object detection now runs on the SmartNav server itself instead of needing a separate YOLO service. Each panorama is split into 12 camera-like views (8 around the horizon and 4 looking down at desks and the floor), YOLOX-S finds the objects in each view, and each object is recorded with the direction it sits in. Sightings from overlapping views are compared on a shared image plane, over only the region both views could see, so an object seen twice, cut off at a view's edge, or lying under the camera is counted once, while people sitting side by side stay separate. On simulated rooms, a single object is counted twice at 0.3% of positions, and rows of chairs and of people are counted exactly in 99–100% of layouts. The scene page lists the objects found ("laptop ×7"), and clicking one turns the 360° view to face it, cycling through each instance. Object names are added to the scene's tags and given to the AI assistant. Scans run one at a time, are rate-limited, and are saved only if the scene's panorama did not change during the scan. On Windows the detector runs on the GPU through DirectML when that is faster: each machine's CPU and graphics adapters are timed once and the fastest is remembered (set `ONNX_DEVICE` to override). Measured on a real classroom panorama: about 1 second per scan on an RTX 3050 laptop GPU against 2 seconds on the CPU, with identical results and each object's recorded direction landing on the object. |
 
 ## Main Methodologies Introduced
 
@@ -65,7 +65,7 @@
 | 360° Stitching | Rotation-only camera model, focal-length solve, loop closure |
 | Learned Feature Matching | XFeat (ONNX Runtime Web), ORB fallback |
 | Visual Place Recognition | DINOv2-small (ONNX Runtime, Node.js) + cosine similarity |
-| Object Detection | YOLOX-S (ONNX Runtime, Node.js), 8 views per panorama, cross-view merging |
+| Object Detection | YOLOX-S (ONNX Runtime, Node.js, DirectML GPU when available), 12 views per panorama, cross-view merging on a shared image plane |
 | Testing | node:test, Vitest, MongoDB Memory Server |
 | Continuous Integration | GitHub Actions |
 
@@ -93,7 +93,7 @@ The sections below are the same steps done by hand.
 cd backend
 npm install
 cp .env.example .env        # then fill in MONGODB_URI and the two JWT secrets
-npm run models:fetch        # one-time download of the AI models (60 MB, checksum-verified)
+npm run models:fetch        # one-time download of the AI models (60 MB, checksum-verified); also picks CPU or GPU
 npm start                   # http://localhost:5000
 ```
 

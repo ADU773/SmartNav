@@ -181,33 +181,87 @@ test('object detection on scenes', { timeout: 240000 }, async (t) => {
         assert.equal(result.status, 422);
     });
 
-    await t.test('a remote detector gets a configured image link and its labels are cleaned', async () => {
+    await t.test('scans queue one at a time, turn away a crowd, and recover from a failed scan', async () => {
+        const scenes = await Promise.all([1, 2, 3, 4, 5].map(async (n) => Scene.create({ projectId: project._id, name: `Queue ${n}`, image: await makePanorama() })));
+        let release;
+        let started;
+        const gate = new Promise((resolve) => { release = resolve; });
+        const scanning = new Promise((resolve) => { started = resolve; });
+        setDetectorForTests(centreLaptopDetector({ gate, onCall: () => started() }));
+        try {
+            const running = post('/vision/detect', { sceneId: String(scenes[0]._id) }, owner.headers);
+            await scanning;
+            const waiting = scenes.slice(1, 4).map((scene) => post('/vision/detect', { sceneId: String(scene._id) }, owner.headers));
+            // One running and three waiting: the next is told the server is busy.
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            const turnedAway = await post('/vision/detect', { sceneId: String(scenes[4]._id) }, owner.headers);
+            assert.equal(turnedAway.status, 503);
+            release();
+            assert.deepEqual((await Promise.all([running, ...waiting])).map((r) => r.status), [200, 200, 200, 200]);
+
+            setDetectorForTests(() => { throw new Error('model crashed'); });
+            assert.equal((await post('/vision/detect', { sceneId: String(scenes[4]._id) }, owner.headers)).status, 500);
+            setDetectorForTests(centreLaptopDetector());
+            assert.equal((await post('/vision/detect', { sceneId: String(scenes[4]._id) }, owner.headers)).status, 200, 'the queue is still usable');
+        } finally {
+            release();
+            setDetectorForTests(centreLaptopDetector());
+        }
+    });
+
+    await t.test('a scene saved with no tag list can still be scanned', async () => {
+        const legacy = await Scene.create({ projectId: project._id, name: 'Legacy tags', image: await makePanorama() });
+        await Scene.collection.updateOne({ _id: legacy._id }, { $set: { metadata: null } });
+        const result = await post('/vision/detect', { sceneId: String(legacy._id) }, owner.headers);
+        assert.equal(result.status, 200);
+        assert.deepEqual((await Scene.findById(legacy._id).lean()).metadata, ['laptop']);
+    });
+
+    await t.test('a remote detector gets a configured image link and its replies are checked', async () => {
         let received;
+        let reply;
         const remote = http.createServer((req, res) => {
             let body = '';
             req.on('data', (chunk) => { body += chunk; });
             req.on('end', () => {
                 received = JSON.parse(body);
-                res.setHeader('Content-Type', 'application/json');
-                // Ultralytics style: numeric class IDs, names in `name`; class 0 is "person".
-                res.end(JSON.stringify({ results: [
-                    { class: 0, name: 'person', confidence: 0.9 },
-                    { class: 56, name: 'chair', score: 0.5 },
-                    { label: '' },
-                ] }));
+                reply(res);
             });
         });
+        const json = (payload) => (res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(payload)); };
         await new Promise((resolve) => remote.listen(0, '127.0.0.1', resolve));
         process.env.YOLO_API_URL = `http://127.0.0.1:${remote.address().port}/detect`;
         process.env.PUBLIC_API_URL = 'https://api.example.test/';
         try {
             const remoteScene = await Scene.create({ projectId: project._id, name: 'Remote', image: await makePanorama() });
-            const result = await post('/vision/detect', { sceneId: String(remoteScene._id) }, { ...owner.headers, 'X-Forwarded-Host': 'attacker.example' });
+            const scan = (headers = {}) => post('/vision/detect', { sceneId: String(remoteScene._id) }, { ...owner.headers, ...headers });
+
+            // Ultralytics style: names in `name`, numeric class IDs in `class`.
+            // Class 0 is "person" and must not be dropped as a falsy value.
+            reply = json({ results: [
+                { class: 0, name: 'person', confidence: 0.9 },
+                { class: 56, name: 'chair', score: 0.5 },
+                { class: 0, confidence: 0.4 },
+                { label: '' },
+            ] });
+            const result = await scan({ 'X-Forwarded-Host': 'attacker.example' });
             assert.equal(result.status, 200);
-            assert.equal(received.imageUrl, `https://api.example.test${remoteScene.image}`);
-            assert.deepEqual(result.body.data.labels, ['person', 'chair']);
+            assert.equal(received.imageUrl, `https://api.example.test${remoteScene.image}`, 'built from configuration, not request headers');
+            assert.deepEqual(result.body.data.labels, ['person', 'chair', '0']);
             const saved = await Scene.findById(remoteScene._id).lean();
-            assert.deepEqual(saved.detections.map((d) => [d.label, d.yawDeg]), [['person', null], ['chair', null]]);
+            assert.deepEqual(saved.detections.map((d) => [d.label, d.yawDeg]), [['person', null], ['chair', null], ['0', null]]);
+
+            reply = (res) => { res.statusCode = 500; res.end('internal error'); };
+            assert.equal((await scan()).status, 502);
+            reply = (res) => res.end('not json');
+            assert.equal((await scan()).status, 502);
+
+            // An older absolute form of an uploaded image still gives a working link.
+            const file = remoteScene.image.split('/').pop();
+            await Scene.updateOne({ _id: remoteScene._id }, { $set: { image: `https://old-host.example/uploads/${file}` } });
+            reply = json({ detections: [] });
+            assert.equal((await scan()).status, 200);
+            assert.equal(received.imageUrl, `https://api.example.test/uploads/${file}`);
         } finally {
             delete process.env.YOLO_API_URL;
             delete process.env.PUBLIC_API_URL;

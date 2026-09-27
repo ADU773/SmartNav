@@ -80,6 +80,7 @@ const sceneSchema = new mongoose.Schema({
     // Which model scanned the scene, when, and which image it saw.
     objectScan: {
         type: {
+            _id: false,
             modelVersion: String,
             scannedAt: Date,
             image: String,

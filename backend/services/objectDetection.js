@@ -47,13 +47,25 @@ const DETECT_DOWN_STEP_DEG = 90;
 // part of a partial panorama. Much looser than place recognition's limit: a
 // half-covered view still shows whole objects worth detecting.
 const DETECT_MAX_EMPTY_FRACTION = 0.8;
-// Two sightings of the same class from different views are one object when
-// this much of the smaller one's angular footprint lies inside the other's.
-// Measured on footprints, not centre distance, so an object cut off at one
-// view's edge still matches the whole sighting from the next view.
-const MERGE_MIN_OVERLAP = 0.5;
-// A box this close to the view's edge is probably cut off by it.
-const EDGE_MARGIN_PX = 2;
+// Merging thresholds (see matchScore). Sightings from two views are compared
+// over the region both views saw: they are one object when their boxes there
+// coincide (IoU), or one is a looser box around the other (mostly contained,
+// and not tiny beside it). At least MERGE_MIN_COMMON of one box must lie in
+// that shared region, or there is too little to compare. Tuned on simulated
+// scenes (single objects, rows, crowds, objects under the camera) and two
+// real classroom panoramas.
+const MERGE_MIN_IOU = 0.35;
+const MERGE_MIN_CONTAINED = 0.75;
+const MERGE_MIN_AREA_RATIO = 0.2;
+const MERGE_MIN_COMMON = 0.3;
+// Within one view, the detector sometimes reports the top part of an object
+// as well as the whole of it (a person's head and shoulders next to their
+// whole body), and NMS keeps both because their IoU is low.
+const NESTED_MIN_INSIDE = 0.9;
+const NESTED_MIN_AREA_RATIO = 0.2;
+const NESTED_MAX_TOP_OFFSET = 0.1; // of the whole's height
+// A box within this share of the view size from an edge is probably cut off.
+const EDGE_MARGIN_FRACTION = 0.01;
 
 const DEG = Math.PI / 180;
 
@@ -156,21 +168,23 @@ function viewPointToDirection(u, v, size, { yawDeg, pitchDeg = 0, fovDeg }) {
     return { yawDeg: yaw + 0, pitchDeg: -lat / DEG + 0 };
 }
 
-/** Wraps an angle in degrees into (-180, 180]. */
-function wrapDeg(angle) {
-    let a = angle % 360;
-    if (a > 180) a -= 360;
-    if (a <= -180) a += 360;
-    return a;
+/** Unit vector for a Marzipano-convention direction: x right, y up, z forward. */
+function toVector({ yawDeg, pitchDeg }) {
+    const yaw = yawDeg * DEG, lat = -pitchDeg * DEG;
+    return [Math.cos(lat) * Math.sin(yaw), Math.sin(lat), Math.cos(lat) * Math.cos(yaw)];
 }
 
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const normalize = (a) => { const n = Math.hypot(a[0], a[1], a[2]); return n > 1e-12 ? [a[0] / n, a[1] / n, a[2] / n] : null; };
+
 /**
- * Turns one view's boxes into sphere-anchored detections.
+ * Turns one view's boxes into sphere-anchored sightings.
  *
- * Besides the centre direction, each detection keeps what merging needs: the
- * view it came from, its angular footprint (yaw and pitch ranges, with yaw
- * relative to the centre so the ±180° seam is harmless), and whether the box
- * touches the view's edge.
+ * Besides the centre direction, each sighting keeps what merging needs: the
+ * view it came from and that view's axis, the directions of the box's four
+ * corners, and whether the box touches the view's edge (and so is probably a
+ * cut-off part of something larger).
  *
  * @param {object[]} boxes - from nonMaxSuppression
  * @param {number} size - view size in pixels
@@ -178,77 +192,246 @@ function wrapDeg(angle) {
  * @param {string|number} [viewId] - identifies the view; defaults to its yaw and pitch
  */
 function detectionsFromView(boxes, size, view, viewId = `${view.yawDeg}/${view.pitchDeg || 0}`) {
+    const margin = size * EDGE_MARGIN_FRACTION;
+    const at = (u, v) => toVector(viewPointToDirection(u, v, size, view));
+    const axis = at(size / 2, size / 2);
+    // The view's field of view as four planes through the camera, each given
+    // by its inward normal: a direction is in view when it is on the inner
+    // side of all four.
+    const right = normalize(at(size, size / 2).map((x, i) => x - at(0, size / 2)[i]));
+    const up = normalize(at(size / 2, 0).map((x, i) => x - at(size / 2, size)[i]));
+    const t = Math.tan((view.fovDeg * DEG) / 2);
+    const frustum = [
+        right.map((x, i) => x + t * axis[i]),
+        right.map((x, i) => t * axis[i] - x),
+        up.map((x, i) => x + t * axis[i]),
+        up.map((x, i) => t * axis[i] - x),
+    ];
     return boxes.map((box) => {
         const x1 = Math.max(0, box.x1), y1 = Math.max(0, box.y1);
         const x2 = Math.min(size, box.x2), y2 = Math.min(size, box.y2);
         const centre = viewPointToDirection((x1 + x2) / 2, (y1 + y2) / 2, size, view);
-        const xs = [x1, (x1 + x2) / 2, x2];
-        const ys = [y1, (y1 + y2) / 2, y2];
-        const outline = xs.flatMap((x) => ys.map((y) => viewPointToDirection(x, y, size, view)));
-        const yawOffsets = outline.map((point) => wrapDeg(point.yawDeg - centre.yawDeg));
-        const pitches = outline.map((point) => point.pitchDeg);
+        const centreVector = toVector(centre);
         return {
             label: COCO_CLASSES[box.classIndex],
             confidence: box.score,
             yawDeg: centre.yawDeg,
             pitchDeg: centre.pitchDeg,
             view: viewId,
-            footprint: {
-                yawMin: Math.min(...yawOffsets), yawMax: Math.max(...yawOffsets),
-                pitchMin: Math.min(...pitches), pitchMax: Math.max(...pitches),
-            },
-            clipped: box.x1 <= EDGE_MARGIN_PX || box.y1 <= EDGE_MARGIN_PX
-                || box.x2 >= size - EDGE_MARGIN_PX || box.y2 >= size - EDGE_MARGIN_PX,
+            frustum,
+            box: { x1, y1, x2, y2 },
+            corners: [[x1, y1], [x2, y1], [x2, y2], [x1, y2]].map(([u, v]) => toVector(viewPointToDirection(u, v, size, view))),
+            centreVector,
+            // How far off the view's axis the object was: smaller is less distorted.
+            offAxis: Math.acos(Math.max(-1, Math.min(1, dot(axis, centreVector)))),
+            clipped: box.x1 <= margin || box.y1 <= margin || box.x2 >= size - margin || box.y2 >= size - margin,
         };
     });
 }
 
-/** Share of the smaller footprint that lies inside the other one (0..1). */
-function footprintOverlap(a, b) {
-    const shift = wrapDeg(b.yawDeg - a.yawDeg);
-    const yaw = Math.min(a.footprint.yawMax, shift + b.footprint.yawMax) - Math.max(a.footprint.yawMin, shift + b.footprint.yawMin);
-    const pitch = Math.min(a.footprint.pitchMax, b.footprint.pitchMax) - Math.max(a.footprint.pitchMin, b.footprint.pitchMin);
-    if (yaw <= 0 || pitch <= 0) return 0;
-    const area = (d) => (d.footprint.yawMax - d.footprint.yawMin) * (d.footprint.pitchMax - d.footprint.pitchMin);
-    const smaller = Math.min(area(a), area(b));
-    return smaller > 0 ? (yaw * pitch) / smaller : 0;
+function polygonArea(points) {
+    let area = 0;
+    for (let i = 0; i < points.length; i += 1) {
+        const [x1, y1] = points[i];
+        const [x2, y2] = points[(i + 1) % points.length];
+        area += x1 * y2 - x2 * y1;
+    }
+    return area / 2;
+}
+
+/** Intersection of two convex polygons, both counter-clockwise (Sutherland-Hodgman). */
+function clipPolygon(subject, clip) {
+    let output = subject;
+    for (let i = 0; i < clip.length && output.length; i += 1) {
+        const [ax, ay] = clip[i];
+        const [bx, by] = clip[(i + 1) % clip.length];
+        const inside = ([x, y]) => (bx - ax) * (y - ay) - (by - ay) * (x - ax) >= 0;
+        const cut = ([px, py], [qx, qy]) => {
+            const a1 = by - ay, b1 = ax - bx, c1 = a1 * ax + b1 * ay;
+            const a2 = qy - py, b2 = px - qx, c2 = a2 * px + b2 * py;
+            const det = a1 * b2 - a2 * b1;
+            return [(b2 * c1 - b1 * c2) / det, (a1 * c2 - a2 * c1) / det];
+        };
+        const input = output;
+        output = [];
+        for (let j = 0; j < input.length; j += 1) {
+            const current = input[j];
+            const previous = input[(j + input.length - 1) % input.length];
+            if (inside(current)) {
+                if (!inside(previous)) output.push(cut(previous, current));
+                output.push(current);
+            } else if (inside(previous)) {
+                output.push(cut(previous, current));
+            }
+        }
+    }
+    return output;
+}
+
+/** Keeps the part of a polygon where k + ku*u + kw*w >= 0. */
+function clipHalfPlane(points, k, ku, kw) {
+    const value = ([u, w]) => k + ku * u + kw * w;
+    const out = [];
+    for (let i = 0; i < points.length; i += 1) {
+        const current = points[i];
+        const previous = points[(i + points.length - 1) % points.length];
+        const vc = value(current), vp = value(previous);
+        if ((vc >= 0) !== (vp >= 0)) {
+            const f = vp / (vp - vc);
+            out.push([previous[0] + f * (current[0] - previous[0]), previous[1] + f * (current[1] - previous[1])]);
+        }
+        if (vc >= 0) out.push(current);
+    }
+    return out;
 }
 
 /**
- * Merges sightings of the same object from overlapping views.
- *
- * Only sightings from different views are merged: within one view, NMS has
- * already separated neighbouring objects, so five people sitting side by side
- * stay five. Across views, a sighting joins the object whose footprint it
- * overlaps most (same label, MERGE_MIN_OVERLAP or more), and each object takes
- * at most one sighting per view. Whole sightings are placed first, so an
- * object's direction comes from a view that saw all of it, not from one that
- * cut it off.
+ * How two sightings' boxes overlap, compared on one image plane that faces
+ * the point between them (a gnomonic projection keeps each box's edges
+ * straight), and only over the region both views could see. Each view
+ * reports only the part of an object inside it, so an object cut off by one
+ * view's edge, or cut differently by two views, is compared on the part both
+ * saw. Views at different pitches distort the same object differently; the
+ * shared plane removes most of that.
+ * @returns {{ iou:number, insideA:number, insideB:number, ratio:number } | null}
  */
-function mergeDetections(detections) {
-    const ordered = [...detections].sort((a, b) => Number(a.clipped) - Number(b.clipped) || b.confidence - a.confidence);
-    const objects = [];
-    for (const sighting of ordered) {
-        let best = null;
-        let bestOverlap = MERGE_MIN_OVERLAP;
-        for (const object of objects) {
-            if (object.main.label !== sighting.label || object.views.has(sighting.view)) continue;
-            const overlap = footprintOverlap(object.main, sighting);
-            if (overlap >= bestOverlap) { best = object; bestOverlap = overlap; }
+function boxOverlap(a, b) {
+    const axis = normalize([a.centreVector[0] + b.centreVector[0], a.centreVector[1] + b.centreVector[1], a.centreVector[2] + b.centreVector[2]]);
+    if (!axis) return null;
+    const right = normalize(cross([0, 1, 0], axis)) || [1, 0, 0];
+    const up = cross(axis, right);
+    const project = (corners) => {
+        const points = [];
+        for (const p of corners) {
+            const depth = dot(p, axis);
+            if (depth < 0.2) return null; // more than ~78° from the shared axis
+            points.push([dot(p, right) / depth, dot(p, up) / depth]);
         }
-        if (best) {
-            best.views.add(sighting.view);
-            best.confidence = Math.max(best.confidence, sighting.confidence);
-        } else {
-            objects.push({ main: sighting, views: new Set([sighting.view]), confidence: sighting.confidence });
+        return polygonArea(points) < 0 ? points.reverse() : points;
+    };
+    let pa = project(a.corners);
+    let pb = project(b.corners);
+    if (!pa || !pb) return null;
+    const clipToView = (points, frustum) => frustum.reduce(
+        (poly, n) => (poly.length ? clipHalfPlane(poly, dot(n, axis), dot(n, right), dot(n, up)) : poly), points);
+    const fullA = Math.abs(polygonArea(pa));
+    const fullB = Math.abs(polygonArea(pb));
+    pa = clipToView(pa, b.frustum);
+    pb = clipToView(pb, a.frustum);
+    if (pa.length < 3 || pb.length < 3) return null;
+    const areaA = Math.abs(polygonArea(pa));
+    const areaB = Math.abs(polygonArea(pb));
+    if (areaA <= 0 || areaB <= 0) return null;
+    const shared = clipPolygon(pa, pb);
+    const inter = shared.length >= 3 ? Math.abs(polygonArea(shared)) : 0;
+    return {
+        iou: inter / (areaA + areaB - inter),
+        insideA: inter / areaA,
+        insideB: inter / areaB,
+        ratio: Math.min(areaA, areaB) / Math.max(areaA, areaB),
+        // Share of each box inside the region both views saw.
+        coverA: fullA > 0 ? areaA / fullA : 0,
+        coverB: fullB > 0 ? areaB / fullB : 0,
+    };
+}
+
+/** Whether `part` is the detector re-describing the top part of `whole` (same view, pixel boxes). */
+function isNestedPart(part, whole) {
+    const p = part.box, w = whole.box;
+    const inter = Math.max(0, Math.min(p.x2, w.x2) - Math.max(p.x1, w.x1)) * Math.max(0, Math.min(p.y2, w.y2) - Math.max(p.y1, w.y1));
+    const partArea = (p.x2 - p.x1) * (p.y2 - p.y1);
+    const wholeArea = (w.x2 - w.x1) * (w.y2 - w.y1);
+    return partArea > 0 && inter / partArea >= NESTED_MIN_INSIDE
+        && partArea >= NESTED_MIN_AREA_RATIO * wholeArea
+        && Math.abs(p.y1 - w.y1) <= NESTED_MAX_TOP_OFFSET * (w.y2 - w.y1);
+}
+
+/**
+ * Score (0 = no match) for two sightings of the same label being one object.
+ * Sightings from the same view are one object only when one box is the top
+ * part of the other; otherwise NMS already decided they are different. From
+ * different views, the boxes are compared with boxOverlap, which also handles
+ * objects cut off by either view's edge.
+ */
+function matchScore(s, m) {
+    if (s.view === m.view) return isNestedPart(s, m) || isNestedPart(m, s) ? 1 : 0;
+    const o = boxOverlap(s, m);
+    // Too little of either box was visible to both views to compare them.
+    if (!o || Math.max(o.coverA, o.coverB) < MERGE_MIN_COMMON) return 0;
+    // Over what both views saw, the boxes coincide, or one is a looser box
+    // around the same thing.
+    const contained = Math.max(o.insideA, o.insideB) >= MERGE_MIN_CONTAINED && o.ratio >= MERGE_MIN_AREA_RATIO;
+    return o.iou >= MERGE_MIN_IOU || contained ? Math.max(o.iou, o.ratio * Math.max(o.insideA, o.insideB)) : 0;
+}
+
+/**
+ * Groups sightings of the same object from overlapping views.
+ *
+ * Every pair of same-label sightings is scored (see matchScore), and pairs are
+ * joined strongest first, so each sighting ends up with the object it matches
+ * best even when it also resembles a neighbour. Two groups are never joined
+ * if each already holds a whole sighting from the same view (other than a
+ * nested part): NMS decided those were different objects, which keeps
+ * neighbours in a row or a crowd apart.
+ */
+function clusterSightings(detections) {
+    const n = detections.length;
+    const parent = detections.map((_, i) => i);
+    const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    const members = detections.map((d) => [d]);
+
+    const pairs = [];
+    for (let i = 0; i < n; i += 1) {
+        for (let j = i + 1; j < n; j += 1) {
+            if (detections[i].label !== detections[j].label) continue;
+            const score = matchScore(detections[i], detections[j]);
+            if (score > 0) pairs.push({ i, j, score });
         }
     }
-    return objects.map(({ main, confidence }) => ({
-        label: main.label,
-        confidence: Math.round(confidence * 1000) / 1000,
-        yawDeg: Math.round(main.yawDeg * 10) / 10,
-        pitchDeg: Math.round(main.pitchDeg * 10) / 10,
-    }));
+    pairs.sort((a, b) => b.score - a.score);
+
+    // Whole sightings from one view in two groups: different objects, unless
+    // one is a nested part of the other.
+    const conflict = (a, b) => a.some((x) => b.some((y) => x.view === y.view
+        && !isNestedPart(x, y) && !isNestedPart(y, x)));
+    for (const { i, j } of pairs) {
+        const a = find(i), b = find(j);
+        if (a === b || conflict(members[a], members[b])) continue;
+        parent[b] = a;
+        members[a] = members[a].concat(members[b]);
+        members[b] = null;
+    }
+    return members.filter(Boolean).map((group) => ({ label: group[0].label, members: group }));
+}
+
+/** Marzipano-convention direction of a unit vector. */
+function toDirection([x, y, z]) {
+    let yawDeg = Math.atan2(x, z) / DEG;
+    if (yawDeg <= -180) yawDeg += 360;
+    return { yawDeg: yawDeg + 0, pitchDeg: -Math.asin(Math.max(-1, Math.min(1, y))) / DEG + 0 };
+}
+
+/**
+ * Merged objects (see clusterSightings). Each is placed where the least
+ * distorted whole sighting saw it. An object every view cut off (a person
+ * standing close to the camera, say) is placed between its parts' centres,
+ * since each part's centre leans towards the part that view could see.
+ */
+function mergeDetections(detections) {
+    return clusterSightings(detections).map(({ label, members }) => {
+        const whole = members.filter((m) => !m.clipped);
+        const direction = whole.length
+            ? whole.reduce((a, b) => (b.offAxis < a.offAxis ? b : a))
+            : toDirection(normalize(members.reduce((sum, m) => sum.map((x, i) => x + m.centreVector[i]), [0, 0, 0])) || members[0].centreVector);
+        let yawDeg = Math.round(direction.yawDeg * 10) / 10;
+        if (yawDeg <= -180) yawDeg += 360;
+        return {
+            label,
+            confidence: Math.round(Math.max(...members.map((m) => m.confidence)) * 1000) / 1000,
+            yawDeg,
+            pitchDeg: Math.round(direction.pitchDeg * 10) / 10,
+        };
+    });
 }
 
 /** Label counts, most frequent first, e.g. [{ label: 'chair', count: 6 }]. */
@@ -279,7 +462,8 @@ module.exports = {
     nonMaxSuppression,
     viewPointToDirection,
     detectionsFromView,
-    footprintOverlap,
+    boxOverlap,
+    clusterSightings,
     mergeDetections,
     summarize,
     detectionViews,

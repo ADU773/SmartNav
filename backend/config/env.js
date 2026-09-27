@@ -11,8 +11,8 @@ const schema = z.object({
 
     // Secrets. Refused in production when left at the development default, so a
     // deploy cannot silently ship forgeable tokens.
-    JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters."),
-    JWT_REFRESH_SECRET: z.string().min(32, "JWT_REFRESH_SECRET must be at least 32 characters."),
+    JWT_ACCESS_SECRET: z.string({ error: "JWT_ACCESS_SECRET is required (at least 32 characters)." }).min(32, "JWT_ACCESS_SECRET must be at least 32 characters."),
+    JWT_REFRESH_SECRET: z.string({ error: "JWT_REFRESH_SECRET is required (at least 32 characters)." }).min(32, "JWT_REFRESH_SECRET must be at least 32 characters."),
     ACCESS_TOKEN_TTL: z.string().default("15m"),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
@@ -26,6 +26,8 @@ const schema = z.object({
     YOLO_API_URL: z.string().url().optional(),
     // This API's public address, used to build image links for YOLO_API_URL.
     PUBLIC_API_URL: z.string().url().optional(),
+    // Where object detection runs: auto (fastest, timed once), cpu, gpu or gpu:N.
+    ONNX_DEVICE: z.string().regex(/^(auto|cpu|gpu(:\d+)?)$/i, "ONNX_DEVICE must be auto, cpu, gpu or gpu:N.").optional(),
 });
 
 const DEV_SECRET = "development-only-insecure-secret-change-me";

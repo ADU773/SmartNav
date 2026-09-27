@@ -1,3 +1,4 @@
+const path = require("path");
 const Scene = require("../models/Scene");
 const Project = require("../models/Project");
 const { requireId, fail, sendError } = require("../services/integrity");
@@ -19,13 +20,16 @@ const REMOTE_MAX_LABEL_LENGTH = 60;
 async function detectRemotely(scene) {
     // The image URL is built from configuration, never from request headers,
     // so a caller cannot point the detection service at a host they choose.
+    // It names the uploaded file itself, so older stored forms of the path
+    // ("uploads/x.jpg", "https://old-host/uploads/x.jpg") still work.
     const base = (process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/+$/, "");
+    const imageUrl = `${base}/uploads/${encodeURIComponent(path.basename(localFileFor(scene.image)))}`;
     let response;
     try {
         response = await fetch(process.env.YOLO_API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageUrl: `${base}${scene.image}`, sceneId: String(scene._id) }),
+            body: JSON.stringify({ imageUrl, sceneId: String(scene._id) }),
             signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
         });
     } catch {
@@ -56,7 +60,7 @@ const detectObjects = async (req, res) => {
     try {
         const { sceneId } = req.body || {};
         requireId(String(sceneId || ""), "scene ID");
-        const scene = await Scene.findById(sceneId).select("projectId image").lean();
+        const scene = await Scene.findById(sceneId).select("projectId image metadata").lean();
         if (!scene) fail(404, "Scene not found.");
         // Detection writes to the scene, so it is an owner-only operation.
         if (!await Project.exists({ _id: scene.projectId, ownerId: req.user.id })) fail(404, "Scene not found.");
@@ -68,17 +72,17 @@ const detectObjects = async (req, res) => {
 
         // Saved only if the scene still shows the panorama that was scanned, so
         // an image replaced mid-scan never inherits the old image's objects.
-        const saved = await Scene.updateOne(
-            { _id: scene._id, image: scene.image },
-            {
-                $set: {
-                    detections: result.detections,
-                    objectScan: { modelVersion: result.modelVersion, scannedAt: new Date(), image: scene.image },
-                },
-                $addToSet: { metadata: { $each: labels } },
+        const update = {
+            $set: {
+                detections: result.detections,
+                objectScan: { modelVersion: result.modelVersion, scannedAt: new Date(), image: scene.image },
             },
-            { runValidators: true },
-        );
+        };
+        // Tags are added to, never replaced; a missing or null list (older
+        // scenes) is started afresh, as $addToSet cannot extend null.
+        if (Array.isArray(scene.metadata)) update.$addToSet = { metadata: { $each: labels } };
+        else update.$set.metadata = labels;
+        const saved = await Scene.updateOne({ _id: scene._id, image: scene.image }, update, { runValidators: true });
         if (saved.matchedCount === 0) {
             if (!await Scene.exists({ _id: scene._id })) fail(404, "Scene not found.");
             fail(409, "This scene's panorama was changed during the scan. Scan it again.");

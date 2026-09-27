@@ -24,6 +24,6 @@
     "test:integrity": "node --test tests/integrity.test.cjs",
     "test:auth": "node --test tests/auth.test.cjs",
     "migrate:owners": "node scripts/assignProjectOwners.js",
-    "models:fetch": "node -e \"Promise.all([require('./services/placeModel').ensureModelFile(), require('./services/objectModel').ensureModelFile()]).then((f) => console.log('Models ready:', f.join(', '))).catch((e) => { console.error(e.message); process.exit(1); })\""
+    "models:fetch": "node -e \"const o = require('./services/objectModel'); const d = require('./services/onnxDevice'); Promise.all([require('./services/placeModel').ensureModelFile(), o.ensureModelFile()]).then(async (f) => { console.log('Models ready:', f.join(', ')); const { device } = await o.prepareDevice(); console.log('Object detection runs on:', d.describeDevice(device)); }).catch((e) => { console.error(e.message); process.exit(1); })\""
   }
 }

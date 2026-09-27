@@ -98,6 +98,32 @@ test('neighbouring objects in one view stay separate', () => {
     assert.equal(mergeDetections(sightings(90, people)).length, 5);
 });
 
+test('a box nested inside a stronger one in the same view is the same object', () => {
+    // Seen on a real panorama: one man reported as his whole body and,
+    // separately, as his head and shoulders. NMS keeps both (IoU about 0.4).
+    const merged = mergeDetections(sightings(0, [
+        box('person', -6, 6, 0.62, 254, 430),
+        box('person', -6, 3, 0.35, 255, 346),
+    ]));
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].confidence, 0.62);
+    // A person only partly overlapping another is not nested, and stays.
+    assert.equal(mergeDetections(sightings(0, [
+        box('person', -6, 6, 0.62, 254, 430),
+        box('person', 2, 10, 0.5, 240, 400),
+    ])).length, 2);
+});
+
+test('small people seen behind a large person close to the camera stay separate', () => {
+    // Also seen on a real panorama: the near person's box encloses the heads
+    // of three people further back. Inside it, but small and lower down.
+    const merged = mergeDetections(sightings(0, [
+        box('person', -20, 20, 0.9, 150, 600),
+        ...[-12, -2, 8].map((at) => box('person', at, at + 3, 0.6, 330, 370)),
+    ]));
+    assert.equal(merged.length, 4);
+});
+
 test('an object cut off at the edge of one view matches the whole sighting next door', () => {
     // A laptop spanning yaw -20..30: whole in the yaw-0 view, but only its
     // left part (yaw -20..0) is inside the yaw -45 view, whose box is cut off
@@ -110,9 +136,32 @@ test('an object cut off at the edge of one view matches the whole sighting next 
     assert.equal(merged[0].confidence, 0.95);
 });
 
-test('a large object seen from two views merges even though its centres differ', () => {
+test('a large object seen whole from two views merges even though the boxes differ a little', () => {
     const couch = (yawDeg, from, to) => sightings(yawDeg, [box('couch', from - yawDeg, to - yawDeg, 0.8, 200, 460)]);
-    assert.equal(mergeDetections([...couch(0, -15, 30), ...couch(45, 5, 44)]).length, 1);
+    assert.equal(mergeDetections([...couch(0, 3, 42), ...couch(45, 5, 44)]).length, 1);
+});
+
+test('a small object in front of a large one is not absorbed by it', () => {
+    // A large laptop at yaw 0..30 and, from the next view, a small one whose
+    // footprint lies over part of it: two laptops.
+    const merged = mergeDetections([
+        ...sightings(0, [box('laptop', 0, 30, 0.9, 280, 420)]),
+        ...sightings(45, [box('laptop', 20 - 45, 26 - 45, 0.5, 300, 330)]),
+    ]);
+    assert.equal(merged.length, 2);
+});
+
+test('cut-off fragments of an object seen whole elsewhere are absorbed, even two from one view', () => {
+    // A person at yaw 35..55 is whole in the yaw-45 view. The yaw-0 view cuts
+    // them off at its right edge and reports two boxes: the visible part of
+    // the body, and separately the head.
+    const merged = mergeDetections([
+        ...sightings(45, [box('person', 35 - 45, 55 - 45, 0.7, 150, 560)]),
+        ...sightings(0, [box('person', 35, 45, 0.8, 150, 560), box('person', 37, 45, 0.45, 150, 260)]),
+    ]);
+    assert.equal(merged.length, 1);
+    assert.ok(Math.abs(merged[0].yawDeg - 45) < 1, 'placed where the whole sighting was');
+    assert.equal(merged[0].confidence, 0.8);
 });
 
 test('detection views cover the full turn at 45° steps, plus a ring looking down', () => {
@@ -123,4 +172,105 @@ test('detection views cover the full turn at 45° steps, plus a ring looking dow
     // The downward ring reaches straight down, to the floor below the camera.
     const column = Array.from({ length: 321 }, (_, i) => viewPointToDirection(320, 320 + i, 640, down[0]).pitchDeg);
     assert.ok(Math.max(...column) > 89.5);
+});
+
+/*
+ * Whole-pipeline checks on simple 3D scenes. A stand-in for a perfect
+ * detector reports the box of each block as a detection view sees it, cut
+ * off at the view's edges, as YOLOX would. Camera 1.3 m above the floor;
+ * x right, y up, z forward (yaw 0).
+ */
+const DEG = Math.PI / 180;
+const CAMERA_HEIGHT = 1.3;
+
+function project([x, y, z], { yawDeg, pitchDeg = 0, fovDeg }) {
+    const cy = Math.cos(yawDeg * DEG), sy = Math.sin(yawDeg * DEG);
+    const cp = Math.cos(pitchDeg * DEG), sp = Math.sin(pitchDeg * DEG);
+    const x0 = x * cy - z * sy, z1 = x * sy + z * cy;
+    const y0 = y * cp - z1 * sp, z0 = y * sp + z1 * cp;
+    if (z0 <= 1e-9) return null;
+    const half = Math.tan((fovDeg * DEG) / 2);
+    return [(x0 / z0 / half + 1) * 320, (-y0 / z0 / half + 1) * 320];
+}
+
+/** Surface points of an upright block standing at (yaw, distance). */
+function block({ label, yawDeg, dist, w, h, d = w, base = 0, along = 0 }) {
+    const cx = dist * Math.sin(yawDeg * DEG) + along * Math.cos(yawDeg * DEG);
+    const cz = dist * Math.cos(yawDeg * DEG) - along * Math.sin(yawDeg * DEG);
+    const points = [];
+    const steps = Array.from({ length: 11 }, (_, i) => i / 5 - 1);
+    for (const a of steps) for (const b of steps) for (const c of [-1, 1]) {
+        for (const [px, py, pz] of [[a, b, c], [a, c, b], [c, a, b]]) {
+            points.push([cx + (px * w) / 2, base - CAMERA_HEIGHT + ((py + 1) * h) / 2, cz + (pz * d) / 2]);
+        }
+    }
+    return { label, points };
+}
+
+function boxInView(object, view) {
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity, inside = 0;
+    const cut = { left: false, right: false, top: false, bottom: false };
+    for (const point of object.points) {
+        const p = project(point, view);
+        if (!p) continue;
+        const [u, v] = p;
+        if (u < 0) cut.left = true; if (u > 640) cut.right = true;
+        if (v < 0) cut.top = true; if (v > 640) cut.bottom = true;
+        if (u < 0 || u > 640 || v < 0 || v > 640) continue;
+        inside += 1;
+        x1 = Math.min(x1, u); x2 = Math.max(x2, u); y1 = Math.min(y1, v); y2 = Math.max(y2, v);
+    }
+    if (inside < object.points.length / 2 || x2 - x1 < 4 || y2 - y1 < 4) return null;
+    // Cut off by an edge: the visible part reaches that edge.
+    if (cut.left && x1 < 24) x1 = 0; if (cut.right && x2 > 616) x2 = 640;
+    if (cut.top && y1 < 24) y1 = 0; if (cut.bottom && y2 > 616) y2 = 640;
+    return { x1, y1, x2, y2, classIndex: COCO_CLASSES.indexOf(object.label) };
+}
+
+function scanScene(objects) {
+    const found = detectionViews().flatMap((view, index) => {
+        const boxes = objects.map((object, i) => {
+            const b = boxInView(object, view);
+            return b && { ...b, score: 0.5 + 0.04 * ((i * 7 + index * 3) % 10) };
+        }).filter(Boolean);
+        return detectionsFromView(nonMaxSuppression(boxes), 640, view, index);
+    });
+    return mergeDetections(found);
+}
+
+const chair = { label: 'chair', w: 0.45, h: 0.9 };
+const standing = { label: 'person', w: 0.5, d: 0.3, h: 1.7 };
+const seated = { label: 'person', w: 0.5, h: 1.25 };
+
+test('an object seen by both the level and the downward views is counted once', () => {
+    for (let yawDeg = -180; yawDeg < 180; yawDeg += 10) {
+        for (const [shape, dist] of [[chair, 2.5], [chair, 1.2], [{ label: 'bottle', w: 0.08, h: 0.25 }, 1.5], [{ label: 'laptop', w: 0.34, d: 0.24, h: 0.22, base: 0.75 }, 1]]) {
+            const found = scanScene([block({ ...shape, yawDeg, dist })]);
+            assert.equal(found.length, 1, `${shape.label} at ${dist} m, yaw ${yawDeg}`);
+        }
+    }
+});
+
+test('a person standing close is counted once, though every view cuts them off', () => {
+    for (let yawDeg = -180; yawDeg < 180; yawDeg += 15) {
+        const found = scanScene([block({ ...standing, yawDeg, dist: 0.8 })]);
+        assert.equal(found.length, 1, `yaw ${yawDeg}`);
+        // Within the person: at 0.8 m they span about ±17° of yaw.
+        assert.ok(Math.abs(((found[0].yawDeg - yawDeg + 540) % 360) - 180) < 10, 'placed on the person');
+    }
+});
+
+test('an object right under the camera is counted once', () => {
+    for (let yawDeg = -180; yawDeg < 180; yawDeg += 30) {
+        assert.equal(scanScene([block({ label: 'backpack', w: 0.32, d: 0.2, h: 0.45, yawDeg, dist: 0 })]).length, 1, `yaw ${yawDeg}`);
+    }
+});
+
+test('a row of chairs and a distant crowd keep every member', () => {
+    for (const heading of [0, 40, 95, -150]) {
+        const chairs = Array.from({ length: 8 }, (_, i) => block({ ...chair, yawDeg: heading, dist: 2.5, along: (i - 3.5) * 0.55 }));
+        assert.equal(scanScene(chairs).length, 8, `chairs facing ${heading}`);
+        const crowd = Array.from({ length: 6 }, (_, i) => block({ ...seated, yawDeg: heading, dist: 8, along: (i - 2.5) * 0.5 }));
+        assert.equal(scanScene(crowd).length, 6, `crowd facing ${heading}`);
+    }
 });
