@@ -69,6 +69,123 @@
 | Testing | node:test, Vitest, MongoDB Memory Server |
 | Continuous Integration | GitHub Actions |
 
+## Setting Up on a New Computer
+
+These steps take a computer with nothing installed to a running SmartNav360. On Windows, steps 5–7 are done for you by `start-demo.bat`.
+
+### 1. Install the tools
+
+| Tool | Needed for | Notes |
+|---|---|---|
+| [Node.js](https://nodejs.org) 20 or newer (LTS) | Everything | Includes `npm`. Tested with Node.js 24. |
+| [Git](https://git-scm.com) | Getting the code | Not needed if you copy the folder instead. |
+| [MongoDB Community Server](https://www.mongodb.com/try/download/community) | Only if you do not use MongoDB Atlas | See step 3. |
+| [Expo Go](https://expo.dev/go) on a phone | Only for the SmartNav Capture phone app | Optional. |
+
+Nothing extra is needed for the GPU. On Windows 10/11 with a DirectX 12 graphics card, object detection uses the GPU through DirectML, which is included with the backend's packages. On macOS and Linux it runs on the CPU.
+
+### 2. Get the code
+
+```bash
+git clone https://github.com/ADU773/SmartNav.git SmartNav360
+cd SmartNav360
+```
+
+Or copy the project folder from another computer. You can leave out every `node_modules` folder and `backend/.cache`, because they are rebuilt.
+
+Two things are not in Git and must be copied by hand if you want them:
+
+- `backend/uploads/` holds every uploaded image and panorama. Without it, scenes stored in an existing database show broken images. A fresh database does not need it.
+- `backend/.env` holds the database address and secrets (step 4). Pass it privately, never through Git or chat.
+
+### 3. Choose a database
+
+The backend needs a MongoDB **replica set**, because its writes use transactions. Pick one option.
+
+**MongoDB Atlas (easiest, and the one the project uses).** Use the existing cluster's connection string, or create a free cluster. In Atlas, open **Network Access** and add this computer's IP address. A new computer or a new Wi-Fi network is the most common reason the backend cannot connect.
+
+**Local MongoDB.** A standalone server is not enough; start it as a one-node replica set:
+
+```bash
+mkdir C:\data\rs0                                   # macOS/Linux: mkdir -p ~/data/rs0
+mongod --replSet rs0 --dbpath C:\data\rs0 --port 27017
+mongosh --eval "rs.initiate()"                      # once, in a second terminal
+```
+
+Then use `mongodb://127.0.0.1:27017/smartnav360?replicaSet=rs0` as the connection string.
+
+### 4. Configure the backend
+
+```bash
+copy backend\.env.example backend\.env              # macOS/Linux: cp backend/.env.example backend/.env
+```
+
+Open `backend/.env` and set:
+
+| Setting | Value |
+|---|---|
+| `MONGODB_URI` | The connection string from step 3 (required) |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Two different random values of 32+ characters. Create each with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. |
+| `GEMINI_API_KEY` | Optional. Enables real answers in the AI Workspace. |
+
+Leave the other lines as they are; blank lines mean "use the default". Changing the JWT secrets signs everyone out, but accounts and projects are kept.
+
+### 5. Install packages and download the AI models
+
+```bash
+npm --prefix backend install
+npm --prefix frontend install
+npm --prefix backend run models:fetch
+```
+
+`models:fetch` needs internet access once. It downloads the "Where am I?" and object-detection models (60 MB, checksum-verified) into `backend/.cache/models`, then times the CPU and each GPU and prints where object detection will run, for example `Object detection runs on: GPU (DirectML adapter 1)`.
+
+### 6. Start the app
+
+**Windows:** double-click `start-demo.bat`, or run `start-demo.bat check` first to test the setup without starting anything. Stop everything with `stop-demo.bat`.
+
+**macOS / Linux**, in two terminals:
+
+```bash
+npm --prefix backend start                          # API on http://localhost:5000
+npm --prefix frontend run dev                       # app on http://localhost:5173
+```
+
+### 7. First sign-in
+
+Open http://localhost:5173 and choose **Create an account** on the sign-in page. The first account on a database becomes the administrator. On an existing database, sign in with your existing account instead; your projects are still there.
+
+### 8. Use a phone on the same Wi-Fi (optional)
+
+`start-demo.bat` sets this up and opens the app at the computer's network address. By hand:
+
+1. Find the computer's address, for example `192.168.1.5` (`ipconfig` on Windows, `ipconfig getifaddr en0` on macOS).
+2. In `backend/.env`, set `CORS_ORIGINS=http://localhost:5173,http://192.168.1.5:5173`, then restart the backend.
+3. Start the frontend with `npm --prefix frontend run dev -- --host`.
+4. On the computer, open `http://192.168.1.5:5173` (not `localhost`), so the capture QR code points somewhere the phone can reach.
+5. On Windows, allow Node.js through Windows Firewall on **Private** networks when asked.
+
+For the SmartNav Capture phone app, run `start-demo.bat mobile`, or run `npm --prefix mobile install` and then `npx expo start` in `mobile/` with `EXPO_PUBLIC_API_BASE_URL=http://192.168.1.5:5000` set. Scan the Expo QR code with Expo Go.
+
+### 9. Check that it works
+
+- http://localhost:5000/healthz reports the database as connected.
+- `npm --prefix backend test` and `npm --prefix frontend test` pass. The backend tests start their own temporary database, so they do not touch your data.
+- In **Virtual Experience**, pick a scene and click **Detect objects**. The labels found appear as buttons, and clicking one turns the view to that object.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Backend exits with `Invalid backend environment configuration` | The message names the setting to fix in `backend/.env`. |
+| `This operation requires MongoDB transactions` | The database is not a replica set. See step 3. |
+| Backend cannot reach Atlas (timeouts) | Add this computer's IP address in Atlas **Network Access**. |
+| `Port 5000 is already in use` | Run `stop-demo.bat`, or close the other backend window. |
+| Model download fails (no internet) | Copy `backend/.cache/models` from a computer that has it, or set `PLACE_MODEL_PATH` / `OBJECT_MODEL_PATH` in `backend/.env` to your own copies. |
+| Object detection uses the wrong device or is slow | Delete `backend/.cache/models/onnx-devices.json` to time the devices again, or set `ONNX_DEVICE` to `cpu`, `gpu` or `gpu:N` in `backend/.env`. |
+| Scenes show broken images | `backend/uploads/` was not copied from the old computer (step 2). |
+| Phone shows "server not connected" | Same Wi-Fi as the computer, app opened at the network address rather than `localhost`, `CORS_ORIGINS` includes that address, and the firewall allows Node.js (step 8). |
+
 ## Running SmartNav360
 
 ### One-click demo (Windows)
