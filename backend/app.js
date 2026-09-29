@@ -16,6 +16,7 @@ const featureRoutes = require("./routes/featureRoutes");
 const visionRoutes = require("./routes/visionRoutes");
 const panoramaRoutes = require("./routes/panoramaRoutes");
 const locateRoutes = require("./routes/locateRoutes");
+const systemRoutes = require("./routes/systemRoutes");
 
 /**
  * Builds the Express application. Separated from server.js so tests can mount
@@ -87,6 +88,8 @@ function createApp(env, logger) {
     app.use("/api/vision", visionRoutes);
     app.use("/api/panorama", panoramaRoutes);
     app.use("/api/locate", locateRoutes);
+    // Last: model status lists whatever the routes above have loaded.
+    app.use("/api", systemRoutes);
 
     app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
         // Uploaded filenames are random UUIDs, so a given URL always names the
@@ -102,7 +105,7 @@ function createApp(env, logger) {
 
     app.use((error, req, res, next) => {
         if (error instanceof multer.MulterError) {
-            return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 500 MB or smaller." : error.message });
+            return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "That file is larger than the upload limit." : error.message });
         }
         if (error) {
             req.log?.error({ err: error }, "Unhandled request error");

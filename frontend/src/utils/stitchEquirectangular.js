@@ -14,8 +14,9 @@
  *
  * So the metadata is now treated as what it is — a good starting guess. Each
  * adjacent pair of frames is registered against its own overlapping pixels
- * (XFeat learned features with mutual nearest-neighbour matching, falling back
- * to ORB with Lowe's ratio test, then RANSAC over a rotation-only model), one
+ * (SuperPoint + LightGlue on the server's GPU, falling back to XFeat learned
+ * features with mutual nearest-neighbour matching in the browser, and then to
+ * ORB with Lowe's ratio test; RANSAC over a rotation-only model follows), one
  * shared focal length is solved for from those same correspondences, and any
  * loop-closure error is spread around the circle. Only then are the frames
  * reprojected.
@@ -38,6 +39,7 @@
 
 import { loadOpenCV, detectFeatures, matchDescriptors } from "./panorama/features";
 import { loadXFeat, detectLearnedFeatures } from "./panorama/learnedFeatures";
+import { requestGpuMatches } from "./panorama/gpuMatching";
 import { matchMutualNearest } from "./panorama/xfeat";
 import {
   DEG,
@@ -164,7 +166,8 @@ export async function stitchEquirectangular(photos, onProgress) {
     focalRefined: false,
     notes: [],
     matcher: "orb",
-    matcherCounts: { xfeat: 0, orb: 0 },
+    matcherCounts: { lightglue: 0, xfeat: 0, orb: 0 },
+    gpu: null,
   };
 
   /* ---- 1. Load frames at working resolution ---- */
@@ -188,34 +191,49 @@ export async function stitchEquirectangular(photos, onProgress) {
   const initialFocal = focalFromFov(longAxis, DEFAULT_LONG_AXIS_FOV_DEG * DEG);
   report.initialHfovDeg = fovFromFocal(frames[0].width, initialFocal) / DEG;
 
-  /* ---- 2. Detect features once per frame ----------------------------
+  /* ---- 2. Which frames get matched -----------------------------------
    *
-   * XFeat, a small learned detector, is the primary matcher. ORB stays as a
-   * per-pair fallback and is computed lazily — only for frames in a pair that
-   * XFeat could not register — so the common path pays for one detector, and
-   * no pair can end up worse off than it was with ORB alone.
-   *
-   * Measured on a real 13-frame indoor iPhone capture using this file's own
-   * registration code: XFeat produced 2.3-3.3x the RANSAC inliers of ORB, and
-   * where both registered a pair their rotations agreed to within 0.7°. It
-   * does not create overlap that is not there; pairs with no shared content
-   * still fall back to the sensors with either matcher.
+   * The last frame is matched back to the first only when the capture really
+   * did go the whole way round; four frames spanning 90° have no loop to close.
    */
 
-  onProgress?.({ stage: "loading-model" });
-  let xfeatModel = null;
-  try {
-    xfeatModel = await loadXFeat();
-    report.matcher = "xfeat";
-  } catch (error) {
-    report.notes.push(
-      `The learned feature matcher could not be loaded (${error?.message || "unknown error"}), so every pair used ORB.`,
-    );
+  const sensorSpan = yawSpanDeg(frames.map((frame) => frame.sensor));
+  const attemptLoopClosure = count >= 3 && sensorSpan >= LOOP_CLOSURE_MIN_SPAN_DEG;
+
+  const links = [];
+  for (let i = 0; i < count - 1; i += 1) links.push([i, i + 1]);
+  if (attemptLoopClosure) links.push([count - 1, 0]);
+
+  /* ---- 3. Match every pair on the server's GPU ------------------------
+   *
+   * SuperPoint + LightGlue is the primary matcher: it registers low-overlap
+   * and low-texture pairs that the in-browser matchers cannot. It is an
+   * accelerator, not a requirement. When the server has no GPU model, the
+   * user is signed out, or the request fails, `gpu.result` is null and the
+   * pipeline below behaves exactly as it did before it existed.
+   *
+   * XFeat and ORB then act per pair as fallbacks, computed lazily so a
+   * capture the GPU matcher handled completely never pays for either.
+   */
+
+  onProgress?.({ stage: "gpu-matching" });
+  const gpu = await requestGpuMatches(frames, links);
+  if (gpu.result) {
+    report.matcher = "lightglue";
+    report.gpu = {
+      device: gpu.result.device,
+      elapsedMs: gpu.result.elapsedMs,
+      modelVersion: gpu.result.modelVersion,
+    };
+  } else {
+    report.notes.push(`GPU matching on the server was not used (${gpu.error}), so the in-browser matchers handled every pair.`);
   }
 
-  const learned = [];
+  const learned = new Array(count).fill(null);
   const orb = new Array(count).fill(null);
   let cv = null;
+  let xfeatModel = null;
+  let xfeatLoading = null;
 
   const orbFor = async (index) => {
     if (!orb[index]) {
@@ -225,38 +243,52 @@ export async function stitchEquirectangular(photos, onProgress) {
     return orb[index];
   };
 
+  const loadXFeatOnce = () => {
+    xfeatLoading ||= (async () => {
+      onProgress?.({ stage: "loading-model" });
+      try {
+        xfeatModel = await loadXFeat();
+        if (!gpu.result) report.matcher = "xfeat";
+      } catch (error) {
+        report.notes.push(
+          `The in-browser learned feature matcher could not be loaded (${error?.message || "unknown error"}), so pairs it would have handled used ORB.`,
+        );
+      }
+    })();
+    return xfeatLoading;
+  };
+
+  /** XFeat features for a frame, or null if the model is unavailable. */
+  const learnedFor = async (index) => {
+    await loadXFeatOnce();
+    if (!xfeatModel) return null;
+    if (!learned[index]) {
+      learned[index] = await detectLearnedFeatures(xfeatModel, frames[index].canvas, frames[index].width, frames[index].height);
+    }
+    return learned[index];
+  };
+
   try {
-    for (let i = 0; i < count; i += 1) {
-      onProgress?.({ stage: "features", index: i + 1, total: count });
-      await yieldToBrowser();
-      if (xfeatModel) {
-        learned.push(await detectLearnedFeatures(xfeatModel, frames[i].canvas, frames[i].width, frames[i].height));
-      } else {
-        await orbFor(i);
+    // Without the GPU matcher the in-browser one is primary, so every frame's
+    // features are found up front, as they always were. ORB stays lazy: it is
+    // only computed for frames in a pair XFeat could not register.
+    if (!gpu.result) {
+      for (let i = 0; i < count; i += 1) {
+        onProgress?.({ stage: "features", index: i + 1, total: count });
+        await yieldToBrowser();
+        if (!(await learnedFor(i))) await orbFor(i);
       }
     }
 
-    /* ---- 3. Match and register each adjacent pair ---- */
+    /* ---- 3'. Match and register each adjacent pair ---- */
 
-    // The last frame is matched back to the first only when the capture really
-    // did go the whole way round; four frames spanning 90° have no loop to close.
-    const sensorSpan = yawSpanDeg(frames.map((frame) => frame.sensor));
-    const attemptLoopClosure = count >= 3 && sensorSpan >= LOOP_CLOSURE_MIN_SPAN_DEG;
-
-    const links = [];
-    for (let i = 0; i < count - 1; i += 1) links.push([i, i + 1]);
-    if (attemptLoopClosure) links.push([count - 1, 0]);
-
-    const learnedMatches = (fromIndex, toIndex) => {
-      const a = learned[fromIndex];
-      const b = learned[toIndex];
-      return matchMutualNearest(a.descriptors, a.count, b.descriptors, b.count).map((m) => ({
+    const learnedMatches = (a, b) =>
+      matchMutualNearest(a.descriptors, a.count, b.descriptors, b.count).map((m) => ({
         x1: a.points[m.queryIdx].x,
         y1: a.points[m.queryIdx].y,
         x2: b.points[m.trainIdx].x,
         y2: b.points[m.trainIdx].y,
       }));
-    };
 
     const orbMatches = async (fromIndex, toIndex) => {
       const a = await orbFor(fromIndex);
@@ -289,16 +321,29 @@ export async function stitchEquirectangular(photos, onProgress) {
 
       if (cached) return run(cached.matches, cached.matcher);
 
-      let primary = null;
-      if (learned.length) {
-        primary = run(learnedMatches(fromIndex, toIndex), "xfeat");
-        if (primary.source === "image") return primary;
+      // Matchers in order of preference; the first to register the pair wins.
+      const attempts = [];
+      const registered = (matches, matcher) => {
+        const attempt = run(matches, matcher);
+        attempts.push(attempt);
+        return attempt.source === "image" ? attempt : null;
+      };
+
+      const gpuPair = gpu.result?.matches.get(`${fromIndex}-${toIndex}`);
+      if (gpuPair) {
+        const hit = registered(gpuPair, "lightglue");
+        if (hit) return hit;
       }
-      const fallback = run(await orbMatches(fromIndex, toIndex), "orb");
-      // Keep whichever registered. If neither did, report the learned result:
-      // its match counts say more about why the pair failed.
-      if (!primary || fallback.source === "image") return fallback;
-      return primary;
+      const a = await learnedFor(fromIndex);
+      const b = a && (await learnedFor(toIndex));
+      if (a && b) {
+        const hit = registered(learnedMatches(a, b), "xfeat");
+        if (hit) return hit;
+      }
+      const hit = registered(await orbMatches(fromIndex, toIndex), "orb");
+      // If nothing registered, report the first attempt: its match counts say
+      // the most about why the pair failed.
+      return hit || attempts[0];
     };
 
     /* ---- 3a. Broad first pass ------------------------------------------
@@ -375,7 +420,8 @@ export async function stitchEquirectangular(photos, onProgress) {
       width: frame.width,
       height: frame.height,
       aspect: frame.width / frame.height,
-      keypoints: learned[i] ? learned[i].count : orb[i]?.points.length ?? 0,
+      // null when the GPU matcher handled every frame: it reports matches, not keypoints.
+      keypoints: learned[i]?.count ?? orb[i]?.points.length ?? null,
     }));
 
     for (const pair of pairs) {

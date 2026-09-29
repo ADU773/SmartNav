@@ -28,6 +28,29 @@ const schema = z.object({
     PUBLIC_API_URL: z.string().url().optional(),
     // Where object detection runs: auto (fastest, timed once), cpu, gpu or gpu:N.
     ONNX_DEVICE: z.string().regex(/^(auto|cpu|gpu(:\d+)?)$/i, "ONNX_DEVICE must be auto, cpu, gpu or gpu:N.").optional(),
+    // Where downloaded model weights and device timings are kept.
+    MODEL_CACHE_DIR: z.string().optional(),
+
+    // Background jobs run in this process unless a Redis URL is given.
+    REDIS_URL: z.string().regex(/^rediss?:\/\//i, "REDIS_URL must start with redis:// or rediss://.").optional(),
+
+    // Uploaded files stay on this server's disk unless STORAGE_DRIVER=s3.
+    STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+    S3_BUCKET: z.string().optional(),
+    S3_REGION: z.string().optional(),
+    // For S3-compatible services (MinIO, Cloudflare R2, Backblaze B2).
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).optional(),
+    // Public base URL files are served from (a CDN or the bucket's website URL).
+    S3_PUBLIC_URL: z.string().url().optional(),
+
+    // Which language model answers in the AI Workspace: gemini, ollama (local),
+    // or auto (Gemini when GEMINI_API_KEY is set, else Ollama when reachable).
+    LLM_PROVIDER: z.enum(["auto", "gemini", "ollama"]).default("auto"),
+    OLLAMA_URL: z.string().url().default("http://127.0.0.1:11434"),
+    OLLAMA_MODEL: z.string().default("qwen2.5:1.5b"),
 });
 
 const DEV_SECRET = "development-only-insecure-secret-change-me";
@@ -55,6 +78,10 @@ function loadEnv(source = process.env) {
         for (const key of ["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET"]) {
             if (env[key].includes(DEV_SECRET)) throw new Error(`${key} still uses the development default. Set a real secret before deploying.`);
         }
+    }
+
+    if (env.STORAGE_DRIVER === "s3" && !env.S3_BUCKET) {
+        throw new Error("Invalid backend environment configuration:\n  - S3_BUCKET: required when STORAGE_DRIVER=s3.");
     }
 
     env.corsOrigins = env.CORS_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean);

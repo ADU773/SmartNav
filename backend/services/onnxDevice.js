@@ -6,7 +6,8 @@
  * between machines (on a laptop, often the built-in GPU first and the faster
  * separate one second), and some adapters are slower than the CPU. So on
  * first use each candidate is timed in its own child process, and the
- * fastest is remembered per machine and model in backend/.cache/models.
+ * fastest is remembered per machine and model in the model cache
+ * (backend/.cache/models unless MODEL_CACHE_DIR says otherwise).
  *
  * ONNX_DEVICE overrides the choice: "auto" (default), "cpu", "gpu" (DirectML
  * adapter 0) or "gpu:N" (adapter N).
@@ -17,8 +18,9 @@ const fsp = require("fs/promises");
 const os = require("os");
 const path = require("path");
 const { execFile } = require("child_process");
+const { modelCacheDir } = require("./modelCache");
 
-const CACHE_FILE = path.join(__dirname, "..", ".cache", "models", "onnx-devices.json");
+const cacheFile = () => path.join(modelCacheDir(), "onnx-devices.json");
 const PROBE_SCRIPT = path.join(__dirname, "onnxDeviceProbe.js");
 const MAX_ADAPTERS = 4;
 const PROBE_TIMEOUT_MS = 120000;
@@ -57,7 +59,7 @@ function probe(spec, device) {
 
 async function readCache() {
     try {
-        return JSON.parse(await fsp.readFile(CACHE_FILE, "utf8"));
+        return JSON.parse(await fsp.readFile(cacheFile(), "utf8"));
     } catch {
         return {};
     }
@@ -89,8 +91,8 @@ async function chooseDevice(spec) {
     }
 
     cache[cacheKey] = { device, timings, measuredAt: new Date().toISOString() };
-    await fsp.mkdir(path.dirname(CACHE_FILE), { recursive: true });
-    await fsp.writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
+    await fsp.mkdir(path.dirname(cacheFile()), { recursive: true });
+    await fsp.writeFile(cacheFile(), JSON.stringify(cache, null, 2));
     return { device, options: sessionOptions(device), timings };
 }
 
@@ -98,7 +100,7 @@ async function chooseDevice(spec) {
 async function forgetDevice(spec) {
     const cache = await readCache();
     delete cache[`${os.hostname()}|${spec.key}`];
-    if (fs.existsSync(path.dirname(CACHE_FILE))) await fsp.writeFile(CACHE_FILE, JSON.stringify(cache, null, 2));
+    if (fs.existsSync(path.dirname(cacheFile()))) await fsp.writeFile(cacheFile(), JSON.stringify(cache, null, 2));
 }
 
 function describeDevice(device) {
