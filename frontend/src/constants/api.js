@@ -59,6 +59,8 @@ export const API_ENDPOINTS = {
 
   /* ---- Panorama capture sessions ---- */
   PANORAMA_MATCH: '/api/panorama/match',
+  JOB: (jobId) => `/api/jobs/${jobId}`,
+  SYSTEM_MODELS: '/api/system/models',
   PANORAMA_SESSIONS: '/api/panorama/sessions',
   PANORAMA_SESSION_BY_TOKEN: (token) => `/api/panorama/sessions/${token}`,
   PANORAMA_SESSION_STREAM: (token) => `/api/panorama/sessions/${token}/stream`,
