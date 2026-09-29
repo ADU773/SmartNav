@@ -172,4 +172,4 @@ async function locateInProject(projectId, photo) {
     return { matches: rankScenes(query, comparable), indexedScenes: comparable.length, sceneCount, newlyIndexed: built, skipped };
 }
 
-module.exports = { indexScene, ensureProjectIndex, locateInProject, localFileFor };
+module.exports = { indexScene, ensureProjectIndex, locateInProject, localFileFor, toBuffer, fromBuffer };
