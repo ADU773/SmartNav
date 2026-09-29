@@ -37,6 +37,7 @@
 | 2026-09-29 | **GPU Feature Matching (SuperPoint + LightGlue):** Panorama frames are now matched on the server's GPU by SuperPoint + LightGlue, a stronger learned matcher than XFeat for low-overlap and low-texture pairs. The browser uploads its working-resolution frames for the request only (nothing is stored), gets the correspondences back, and runs the same rotation-only registration, focal-length solve and loop closure on them. XFeat and ORB stay as per-pair fallbacks, so stitching still works when the server has no GPU, the model is missing, or the user is signed out. Checked against ground truth: views rendered 30° apart from a real panorama were recovered at 30.00°, at about 190 ms per pair on an RTX 3050 laptop GPU (DirectML), against about 700 ms on the CPU. |
 | 2026-09-29 | **Shared AI Model Store:** Every ONNX model on the server (place recognition, object detection, feature matching, and the models still to come) now goes through one model store instead of each carrying its own download code. Each model is declared once with a pinned download address, a SHA-256 checksum and its licence. Weights are streamed to disk and hashed on the way, and only moved into place when the checksum matches, so a partial or altered download is never used. The store picks CPU or GPU per machine, runs GPU work one model at a time so a 4 GB laptop GPU is not overfilled, and unloads a model after 10 minutes unused. `npm run models:fetch -- --list` shows every model and whether it is downloaded, `npm run models:fetch -- <id>` fetches one, and `MODEL_CACHE_DIR` moves the cache. `GET /api/system/models` reports which models are downloaded and where each runs. The existing models keep their cached files, so nothing is downloaded again. |
 | 2026-09-29 | **Background Jobs:** Work too slow for a single request (analysing, upscaling or tiling a panorama) can now run as a background job. The request answers at once with a job ID, and the browser follows progress and collects the result through `GET /api/jobs/:id`. Only the user who started a job can see it. Each job type runs a fixed number at a time with a short waiting list; beyond that the server answers "busy" instead of letting work pile up. Two identical requests share one job, a job that runs too long is stopped, and finished results are kept for an hour. Settings for a Redis job queue, S3 file storage and a local language model (Ollama) are validated when the server starts, ready for the features that use them. |
+| 2026-09-30 | **AI Gap Filling (LaMa):** Stitched panoramas usually leave the ceiling, the floor and some gaps black. **Fill black gaps with AI** (Panoramic Viewer, after stitching, and the asset preview in Assets) runs LaMa (Suvorov et al., 2022; Apache-2.0), an inpainting model, on the server as a background job. The panorama is filled through ordinary camera views (horizon, rings looking up and down, then straight up and down), so the model never sees the stretched poles, and each view builds on the fills before it. Only gaps within 25° of photographed content are filled; further out the model has nothing to continue, so those parts stay black and the result says how much is still missing. The filled panorama is saved as a new asset with a mask of the generated pixels, the original is kept, and "Where am I?" and object detection ignore the generated parts. Runs on the CPU (DirectML cannot run this model's Fourier layers): about 2.8 seconds per view, one to two minutes per panorama. |
 
 ## Main Methodologies Introduced
 
@@ -69,6 +70,7 @@
 | Learned Feature Matching | SuperPoint + LightGlue (ONNX Runtime, Node.js, DirectML GPU when available), XFeat (ONNX Runtime Web) and ORB fallbacks |
 | Visual Place Recognition | DINOv2-small (ONNX Runtime, Node.js) + cosine similarity |
 | Object Detection | YOLOX-S (ONNX Runtime, Node.js, DirectML GPU when available), 12 views per panorama, cross-view merging on a shared image plane |
+| Panorama Gap Filling | LaMa inpainting (ONNX Runtime, Node.js), perspective views, distance-limited fill with a generated-pixel mask |
 | Testing | node:test, Vitest, MongoDB Memory Server |
 | Continuous Integration | GitHub Actions |
 
@@ -141,7 +143,7 @@ npm --prefix frontend install
 npm --prefix backend run models:fetch
 ```
 
-`models:fetch` needs internet access once. It downloads the "Where am I?", object-detection and panorama feature-matching models (110 MB, checksum-verified) into `backend/.cache/models`, then times the CPU and each GPU and prints where object detection and feature matching will run, for example `Panorama feature matching runs on: GPU (DirectML adapter 1)`. The SuperPoint weights inside the matching model are released for non-commercial research use; check that this suits your deployment.
+`models:fetch` needs internet access once. It downloads the "Where am I?", object-detection, panorama feature-matching and gap-filling models (about 320 MB, checksum-verified) into `backend/.cache/models`, then times the CPU and each GPU and prints where object detection and feature matching will run, for example `Panorama feature matching runs on: GPU (DirectML adapter 1)`. The SuperPoint weights inside the matching model are released for non-commercial research use; check that this suits your deployment.
 
 ### 6. Start the app
 
@@ -184,7 +186,7 @@ For the SmartNav Capture phone app, run `start-demo.bat mobile`, or run `npm --p
 | `This operation requires MongoDB transactions` | The database is not a replica set. See step 3. |
 | Backend cannot reach Atlas (timeouts) | Add this computer's IP address in Atlas **Network Access**. |
 | `Port 5000 is already in use` | Run `stop-demo.bat`, or close the other backend window. |
-| Model download fails (no internet) | Copy `backend/.cache/models` from a computer that has it, or set `PLACE_MODEL_PATH` / `OBJECT_MODEL_PATH` / `MATCH_MODEL_PATH` in `backend/.env` to your own copies. |
+| Model download fails (no internet) | Copy `backend/.cache/models` from a computer that has it, or set `PLACE_MODEL_PATH` / `OBJECT_MODEL_PATH` / `INPAINT_MODEL_PATH` / `MATCH_MODEL_PATH` in `backend/.env` to your own copies. |
 | Stitching does not say "matched on GPU", or object detection uses the wrong device or is slow | Delete `backend/.cache/models/onnx-devices.json` to time the devices again, or set `ONNX_DEVICE` to `cpu`, `gpu` or `gpu:N` in `backend/.env`. |
 | Scenes show broken images | `backend/uploads/` was not copied from the old computer (step 2). |
 | Phone shows "server not connected" | Same Wi-Fi as the computer, app opened at the network address rather than `localhost`, `CORS_ORIGINS` includes that address, and the firewall allows Node.js (step 8). |
@@ -213,7 +215,7 @@ The sections below are the same steps done by hand.
 cd backend
 npm install
 cp .env.example .env        # then fill in MONGODB_URI and the two JWT secrets
-npm run models:fetch        # one-time download of the AI models (110 MB, checksum-verified); also picks CPU or GPU
+npm run models:fetch        # one-time download of the AI models (about 320 MB, checksum-verified); also picks CPU or GPU
 npm start                   # http://localhost:5000
 ```
 

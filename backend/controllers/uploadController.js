@@ -93,6 +93,7 @@ const deleteAsset = async (req, res) => {
             // (see services/fileCleanup.js), so a shared/legacy file is kept.
             await PendingFileDeletion.create([{ filename: asset.filename }], { session });
             if (thumbnailFilename) await PendingFileDeletion.create([{ filename: thumbnailFilename }], { session });
+            if (asset.generatedMaskFilename) await PendingFileDeletion.create([{ filename: asset.generatedMaskFilename }], { session });
             await Asset.deleteOne({ _id: asset._id }, { session });
         }, { ownerId: req.user.id });
         let cleanupPending = false;

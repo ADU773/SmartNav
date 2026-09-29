@@ -37,6 +37,13 @@ const assetSchema = new mongoose.Schema({
     // hint that an asset is usable as a 360° scene image.
     isPanoramic: { type: Boolean, default: false },
 
+    // Set on a panorama whose black gaps were filled by the LaMa model
+    // (services/panoramaFill.js): the asset it was made from, and a mask of
+    // the generated pixels, which "Where am I?" and object detection ignore.
+    filledFrom: { type: mongoose.Schema.Types.ObjectId, ref: "Asset", default: null },
+    generatedMaskFilename: { type: String, default: "" },
+    generatedFraction: { type: Number, default: null },
+
     uploadedAt: {
         type: Date,
         default: Date.now,

@@ -6,6 +6,7 @@ const sharp = require("sharp");
 const { renderView } = require("./placeRecognition");
 const { localFileFor } = require("./placeIndex");
 const { runDetector, INPUT_SIZE, modelVersion } = require("./objectModel");
+const { blankGeneratedPixels } = require("./generatedPixels");
 const {
     DETECT_MAX_EMPTY_FRACTION,
     decodeOutput,
@@ -63,6 +64,8 @@ async function scan(file) {
         throw withStatus(error, 422, "This scene's image could not be read. Upload it again and retry.");
     }
     const { data, info } = decoded;
+    // Objects "found" in AI-filled gaps would be invented; scan only what was photographed.
+    await blankGeneratedPixels(file, data, info);
 
     const found = [];
     let viewsScanned = 0;

@@ -64,4 +64,11 @@ const matchLimiter = limiter({
     message: "Too many stitch requests. Try again in a few minutes.",
 });
 
-module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter, detectLimiter, matchLimiter };
+// Each gap fill runs an inpainting model over up to 20 views of a panorama.
+const fillLimiter = limiter({
+    windowMs: 60 * 60 * 1000,
+    max: 20,
+    message: "Too many gap fills. Try again later.",
+});
+
+module.exports = { fillLimiter, apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter, detectLimiter, matchLimiter };

@@ -72,14 +72,17 @@ if "%RUN_MOBILE%"=="1" if not exist "mobile\node_modules" (
 echo  [OK] Packages installed
 
 rem ---- 4. AI models ----------------------------------------------------
-rem  "Where am I?" (24 MB) and object detection (36 MB). Downloaded once,
-rem  checksum-verified, then reused from the cache.
-call npm --prefix backend run models:fetch --silent >nul 2>nul
+rem  Downloaded once, checksum-verified, then reused from the cache. The
+rem  first run also times the CPU and each GPU and remembers the fastest
+rem  (override with ONNX_DEVICE in backend\.env).
+set "MODEL_LOG=%TEMP%\smartnav-models.log"
+call npm --prefix backend run models:fetch --silent >"%MODEL_LOG%" 2>&1
 if errorlevel 1 (
   echo  [!] Could not download the AI models. Everything else works;
-  echo      "Where am I?" and object detection retry the download on first use.
+  echo      the AI features retry the download on first use.
 ) else (
-  echo  [OK] AI models ready: "Where am I?" and object detection
+  echo  [OK] AI models ready
+  for /f "usebackq delims=" %%l in (`findstr /c:" runs on: " "%MODEL_LOG%"`) do echo       %%l
 )
 
 rem ---- 5. Network address, so a phone can reach the app -----------------
@@ -166,10 +169,15 @@ if errorlevel 1 (
 echo  [OK] Frontend running
 
 rem ---- 10. Phone app, optional --------------------------------------------
+rem  Expo is pinned to this computer's network address and port 8081, so the
+rem  QR code printed below (by this window, not Expo) always matches it.
 if "%RUN_MOBILE%"=="1" (
-  if defined LANIP set "EXPO_PUBLIC_API_BASE_URL=http://%LANIP%:5000"
-  echo  ... Starting the SmartNav Capture phone app - scan its QR code with Expo Go
-  start "SmartNav Mobile" cmd /k "cd /d mobile && npx expo start"
+  if defined LANIP (
+    set "EXPO_PUBLIC_API_BASE_URL=http://%LANIP%:5000"
+    set "REACT_NATIVE_PACKAGER_HOSTNAME=%LANIP%"
+  )
+  echo  ... Starting the SmartNav Capture phone app
+  start "SmartNav Mobile" cmd /k "cd /d mobile && npx expo start --lan --port 8081"
 )
 
 rem ---- 11. Open the app --------------------------------------------------
@@ -197,6 +205,17 @@ echo   Node.js through Windows Firewall on Private networks.
 echo.
 echo   To stop: run stop-demo.bat, or close the server windows.
 echo.
+if "%RUN_MOBILE%"=="1" (
+  if defined LANIP (
+    echo   SmartNav Capture phone app - scan with Expo Go on a phone on this Wi-Fi.
+    echo   The "SmartNav Mobile" window must say "Waiting on" before the app loads.
+    echo.
+    node backend\scripts\showExpoQr.js %LANIP% 8081
+  ) else (
+    echo   [!] No network address found, so the phone app cannot be reached.
+  )
+  echo.
+)
 pause
 exit /b 0
 

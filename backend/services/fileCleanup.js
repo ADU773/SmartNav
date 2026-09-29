@@ -30,6 +30,7 @@ async function processPendingFiles() {
             if (await Asset.exists({ $or: [
                     { filename: job.filename }, { path: imagePath },
                     { thumbnailFilename: job.filename }, { thumbnailPath: imagePath },
+                    { generatedMaskFilename: job.filename },
                 ] }) ||
                 await Scene.exists({ image: imagePath }) || await Project.exists({ floorPlan: imagePath })) {
                 pending++;

@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Collapse, Descriptions, Empty, Image, Progress, Table } from 'antd';
 import { QRCodeSVG } from 'qrcode.react';
-import { CameraOutlined, CopyOutlined, MergeCellsOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CameraOutlined, CopyOutlined, MergeCellsOutlined, MobileOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useProject } from '../../contexts/ProjectContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -15,6 +15,8 @@ import PanoramaService from '../../services/panorama.service';
 import UploadService from '../../services/upload.service';
 import { stitchEquirectangular } from '../../utils/stitchEquirectangular';
 import { getImageUrl } from '../../utils/getImageUrl';
+import { expoGoUrl } from '../../utils/expoUrl';
+import FillGapsButton from '../../components/panorama/FillGapsButton';
 import { API_BASE_URL, API_BASE_IS_SHAREABLE } from '../../constants/api';
 import { ROUTES } from '../../constants/routes';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
@@ -186,6 +188,7 @@ export default function PanoramicViewer() {
   const [stitchDetail, setStitchDetail] = useState(null);
   const [stitchReport, setStitchReport] = useState(null);
   const [resultPreview, setResultPreview] = useState(null);
+  const [resultAssetId, setResultAssetId] = useState(null);
 
   // Live updates over SSE. One held connection replaces a request every 2.5s
   // per open viewer, and photos appear as soon as the phone uploads them.
@@ -288,6 +291,7 @@ export default function PanoramicViewer() {
       const uploadResult = await UploadService.uploadImage(file, currentProject._id);
       if (uploadResult.success) {
         setResultPreview(getImageUrl(uploadResult.data.path));
+        setResultAssetId(uploadResult.data._id);
         // Only now, with the panorama safely stored, are the source photos
         // removed — a failed stitch or upload never costs the originals.
         try {
@@ -328,6 +332,8 @@ export default function PanoramicViewer() {
     return <Empty description="Choose a project to capture a panorama." />;
   }
 
+  const appUrl = expoGoUrl();
+
   return (
     <div className="panoramic-viewer">
       <WorkspaceHeader
@@ -345,6 +351,33 @@ export default function PanoramicViewer() {
           )
         }
       />
+
+      <Card
+        size="small"
+        className="panoramic-viewer__app-card"
+        title={<><MobileOutlined /> SmartNav Capture app (Expo Go)</>}
+      >
+        {appUrl ? (
+          <div className="panoramic-viewer__app">
+            <div className="panoramic-viewer__qr">
+              <QRCodeSVG value={appUrl} size={140} />
+            </div>
+            <ol className="panoramic-viewer__steps">
+              <li>Run <code>start-demo.bat mobile</code> on this computer, and wait until the &quot;SmartNav Mobile&quot; window says &quot;Waiting on&quot;.</li>
+              <li>Install Expo Go on the phone, and join the same Wi-Fi as this computer.</li>
+              <li>Scan this code: with Expo Go on Android, or with the Camera app on iPhone.</li>
+              <li>In the app, start a capture session here and scan its code to send photos.</li>
+            </ol>
+            <code className="panoramic-viewer__app-url">{appUrl}</code>
+          </div>
+        ) : (
+          <p className="panoramic-viewer__hint">
+            This page is open on localhost, which a phone cannot reach. Open SmartNav at this computer&apos;s network
+            address (for example http://192.168.1.20:5173; <code>start-demo.bat</code> does this) to show the code
+            for the phone app.
+          </p>
+        )}
+      </Card>
 
       {!token ? (
         <Card>
@@ -425,6 +458,7 @@ export default function PanoramicViewer() {
                 <h4>Stitched panorama</h4>
                 <Image src={resultPreview} className="panoramic-viewer__result-image" />
                 {stitchReport && <p className="panoramic-viewer__hint">{describeStitch(stitchReport)}</p>}
+                {resultAssetId && <FillGapsButton key={resultAssetId} assetId={resultAssetId} />}
               </div>
             )}
 

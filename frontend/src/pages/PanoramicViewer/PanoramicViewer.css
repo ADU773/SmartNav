@@ -84,3 +84,35 @@
     grid-template-columns: 1fr;
   }
 }
+
+.panoramic-viewer__app-card {
+  margin-bottom: var(--space-4, 16px);
+}
+
+.panoramic-viewer__app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4, 16px);
+}
+
+.panoramic-viewer__app .panoramic-viewer__qr {
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  line-height: 0;
+}
+
+.panoramic-viewer__steps {
+  flex: 1 1 260px;
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-secondary);
+}
+
+.panoramic-viewer__app-url {
+  flex-basis: 100%;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-tertiary);
+}
