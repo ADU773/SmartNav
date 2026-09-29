@@ -24,6 +24,7 @@ import './PanoramicViewer.css';
 const STAGE_LABELS = {
   'loading-photo': 'Loading photos…',
   'loading-model': 'Loading the feature-matching model…',
+  'gpu-matching': 'Matching frames on the GPU…',
   features: 'Finding image features…',
   matching: 'Matching overlapping frames…',
   calibrating: 'Estimating the camera field of view…',
@@ -44,7 +45,13 @@ function describeStitch(report) {
   }
   const registered = report.pairs.filter((pair) => pair.source === 'image').length;
   parts.push(`${registered}/${report.pairs.length} pairs aligned on image features`);
-  if (report.matcherCounts?.orb > 0 && report.matcher === 'xfeat') {
+  if (report.gpu) {
+    const rescued = (report.matcherCounts?.xfeat ?? 0) + (report.matcherCounts?.orb ?? 0);
+    parts.push(
+      `matched on ${report.gpu.device || 'the server GPU'}${report.gpu.elapsedMs ? ` in ${(report.gpu.elapsedMs / 1000).toFixed(1)} s` : ''}`
+    );
+    if (rescued > 0) parts.push(`${rescued} rescued by the in-browser fallbacks`);
+  } else if (report.matcherCounts?.orb > 0 && report.matcher === 'xfeat') {
     parts.push(`${report.matcherCounts.orb} rescued by the ORB fallback`);
   }
   if (report.loopClosureDeg) parts.push(`loop closure ${report.loopClosureDeg.toFixed(1)}° spread across the turn`);
@@ -63,7 +70,8 @@ const PAIR_COLUMNS = [
     title: 'Matcher',
     dataIndex: 'matcher',
     key: 'matcher',
-    render: (matcher) => (matcher === 'xfeat' ? 'XFeat' : matcher === 'orb' ? 'ORB' : '—'),
+    render: (matcher) =>
+      matcher === 'lightglue' ? 'SuperPoint + LightGlue (GPU)' : matcher === 'xfeat' ? 'XFeat' : matcher === 'orb' ? 'ORB' : '—',
   },
   { title: 'Ratio matches', dataIndex: 'descriptorMatches', key: 'descriptorMatches' },
   { title: 'In overlap', dataIndex: 'consideredMatches', key: 'consideredMatches' },
@@ -137,9 +145,11 @@ function StitchDetails({ report }) {
                     {Math.max(0, report.overlapDeg).toFixed(1)}° of overlap
                   </Descriptions.Item>
                 )}
-                <Descriptions.Item label="Keypoints per frame">
-                  {report.frames?.map((f) => f.keypoints).join(', ')}
-                </Descriptions.Item>
+                {report.frames?.some((f) => f.keypoints !== null) && (
+                  <Descriptions.Item label="Keypoints per frame">
+                    {report.frames.map((f) => f.keypoints ?? '—').join(', ')}
+                  </Descriptions.Item>
+                )}
                 {report.loopClosureDeg !== null && (
                   <Descriptions.Item label="Loop closure">{report.loopClosureDeg?.toFixed(2)}°</Descriptions.Item>
                 )}

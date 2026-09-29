@@ -57,4 +57,11 @@ const detectLimiter = limiter({
     message: "Too many object scans. Try again in a few minutes.",
 });
 
-module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter, detectLimiter };
+// Each stitch sends a dozen frames through the feature matcher on the GPU.
+const matchLimiter = limiter({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: "Too many stitch requests. Try again in a few minutes.",
+});
+
+module.exports = { apiLimiter, authLimiter, uploadLimiter, sessionLimiter, locateLimiter, detectLimiter, matchLimiter };

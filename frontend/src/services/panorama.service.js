@@ -94,6 +94,22 @@ const PanoramaService = {
     return response.data;
   },
 
+  /**
+   * Matches features between frame pairs on the server's GPU (SuperPoint +
+   * LightGlue). Frames are sent for this request only and are not stored.
+   * @param {Blob[]} frames - encoded images, in frame order
+   * @param {[number, number][]} links - pairs of indexes into `frames`
+   * @returns {Promise<object>} { success, data: { matcher, device, elapsedMs, frames: {width,height}[],
+   *   pairs: { from, to, matches: [x1, y1, x2, y2, score][] }[] } }
+   */
+  async matchFrames(frames, links) {
+    const formData = new FormData();
+    frames.forEach((frame, i) => formData.append('image', frame, `frame-${i}.jpg`));
+    formData.append('links', JSON.stringify(links));
+    const response = await apiClient.post(API_ENDPOINTS.PANORAMA_MATCH, formData, { timeout: 180000 });
+    return response.data;
+  },
+
   async completeSession(token) {
     const response = await apiClient.post(API_ENDPOINTS.PANORAMA_SESSION_COMPLETE(token));
     return response.data;

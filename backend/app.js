@@ -102,7 +102,7 @@ function createApp(env, logger) {
 
     app.use((error, req, res, next) => {
         if (error instanceof multer.MulterError) {
-            return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "Image must be 500 MB or smaller." : error.message });
+            return res.status(400).json({ success: false, message: error.code === "LIMIT_FILE_SIZE" ? "That file is larger than the upload limit." : error.message });
         }
         if (error) {
             req.log?.error({ err: error }, "Unhandled request error");

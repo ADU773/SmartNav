@@ -34,6 +34,7 @@
 | 2026-09-26 | **Image Previews When Selecting:** Creating a scene, choosing a hotspot destination and choosing a floor plan now show thumbnails and a large preview instead of a list of file names. |
 | 2026-09-26 | **"Where Am I?" Visual Place Recognition:** A visitor photographs their surroundings and the system identifies which scene they are in and which way they are facing, then turns the 360° view to match and uses it as the route's starting point. Each panorama is indexed as a ring of 24 camera-like views, embedded with the DINOv2 image model on the server. Measured on real photos: 13 of 13 correctly located, with headings within about 6.5°; a photo from a room that was never mapped is reported as "not sure" rather than as a confident wrong answer. |
 | 2026-09-26 | **Object Detection with Directions (YOLOX-S):** Object detection now runs on the SmartNav server itself instead of needing a separate YOLO service. Each panorama is split into 12 camera-like views (8 around the horizon and 4 looking down at desks and the floor), YOLOX-S finds the objects in each view, and each object is recorded with the direction it sits in. Sightings from overlapping views are compared on a shared image plane, over only the region both views could see, so an object seen twice, cut off at a view's edge, or lying under the camera is counted once, while people sitting side by side stay separate. On simulated rooms, a single object is counted twice at 0.3% of positions, and rows of chairs and of people are counted exactly in 99–100% of layouts. The scene page lists the objects found ("laptop ×7"), and clicking one turns the 360° view to face it, cycling through each instance. Object names are added to the scene's tags and given to the AI assistant. Scans run one at a time, are rate-limited, and are saved only if the scene's panorama did not change during the scan. On Windows the detector runs on the GPU through DirectML when that is faster: each machine's CPU and graphics adapters are timed once and the fastest is remembered (set `ONNX_DEVICE` to override). Measured on a real classroom panorama: about 1 second per scan on an RTX 3050 laptop GPU against 2 seconds on the CPU, with identical results and each object's recorded direction landing on the object. |
+| 2026-09-29 | **GPU Feature Matching (SuperPoint + LightGlue):** Panorama frames are now matched on the server's GPU by SuperPoint + LightGlue, a stronger learned matcher than XFeat for low-overlap and low-texture pairs. The browser uploads its working-resolution frames for the request only (nothing is stored), gets the correspondences back, and runs the same rotation-only registration, focal-length solve and loop closure on them. XFeat and ORB stay as per-pair fallbacks, so stitching still works when the server has no GPU, the model is missing, or the user is signed out. Checked against ground truth: views rendered 30° apart from a real panorama were recovered at 30.00°, at about 190 ms per pair on an RTX 3050 laptop GPU (DirectML), against about 700 ms on the CPU. |
 
 ## Main Methodologies Introduced
 
@@ -63,7 +64,7 @@
 | Accessible Routing | Weighted Dijkstra with excludable access modes |
 | Mobile Capture App | Expo / React Native, device gravity + gyroscope |
 | 360° Stitching | Rotation-only camera model, focal-length solve, loop closure |
-| Learned Feature Matching | XFeat (ONNX Runtime Web), ORB fallback |
+| Learned Feature Matching | SuperPoint + LightGlue (ONNX Runtime, Node.js, DirectML GPU when available), XFeat (ONNX Runtime Web) and ORB fallbacks |
 | Visual Place Recognition | DINOv2-small (ONNX Runtime, Node.js) + cosine similarity |
 | Object Detection | YOLOX-S (ONNX Runtime, Node.js, DirectML GPU when available), 12 views per panorama, cross-view merging on a shared image plane |
 | Testing | node:test, Vitest, MongoDB Memory Server |
@@ -138,7 +139,7 @@ npm --prefix frontend install
 npm --prefix backend run models:fetch
 ```
 
-`models:fetch` needs internet access once. It downloads the "Where am I?" and object-detection models (60 MB, checksum-verified) into `backend/.cache/models`, then times the CPU and each GPU and prints where object detection will run, for example `Object detection runs on: GPU (DirectML adapter 1)`.
+`models:fetch` needs internet access once. It downloads the "Where am I?", object-detection and panorama feature-matching models (110 MB, checksum-verified) into `backend/.cache/models`, then times the CPU and each GPU and prints where object detection and feature matching will run, for example `Panorama feature matching runs on: GPU (DirectML adapter 1)`. The SuperPoint weights inside the matching model are released for non-commercial research use; check that this suits your deployment.
 
 ### 6. Start the app
 
@@ -181,8 +182,8 @@ For the SmartNav Capture phone app, run `start-demo.bat mobile`, or run `npm --p
 | `This operation requires MongoDB transactions` | The database is not a replica set. See step 3. |
 | Backend cannot reach Atlas (timeouts) | Add this computer's IP address in Atlas **Network Access**. |
 | `Port 5000 is already in use` | Run `stop-demo.bat`, or close the other backend window. |
-| Model download fails (no internet) | Copy `backend/.cache/models` from a computer that has it, or set `PLACE_MODEL_PATH` / `OBJECT_MODEL_PATH` in `backend/.env` to your own copies. |
-| Object detection uses the wrong device or is slow | Delete `backend/.cache/models/onnx-devices.json` to time the devices again, or set `ONNX_DEVICE` to `cpu`, `gpu` or `gpu:N` in `backend/.env`. |
+| Model download fails (no internet) | Copy `backend/.cache/models` from a computer that has it, or set `PLACE_MODEL_PATH` / `OBJECT_MODEL_PATH` / `MATCH_MODEL_PATH` in `backend/.env` to your own copies. |
+| Stitching does not say "matched on GPU", or object detection uses the wrong device or is slow | Delete `backend/.cache/models/onnx-devices.json` to time the devices again, or set `ONNX_DEVICE` to `cpu`, `gpu` or `gpu:N` in `backend/.env`. |
 | Scenes show broken images | `backend/uploads/` was not copied from the old computer (step 2). |
 | Phone shows "server not connected" | Same Wi-Fi as the computer, app opened at the network address rather than `localhost`, `CORS_ORIGINS` includes that address, and the firewall allows Node.js (step 8). |
 
@@ -210,7 +211,7 @@ The sections below are the same steps done by hand.
 cd backend
 npm install
 cp .env.example .env        # then fill in MONGODB_URI and the two JWT secrets
-npm run models:fetch        # one-time download of the AI models (60 MB, checksum-verified); also picks CPU or GPU
+npm run models:fetch        # one-time download of the AI models (110 MB, checksum-verified); also picks CPU or GPU
 npm start                   # http://localhost:5000
 ```
 
