@@ -291,6 +291,7 @@ const finalizeSession = async (req, res) => {
                 await PendingFileDeletion.insertMany(doomed.flatMap((asset) => [
                     { filename: asset.filename },
                     ...(asset.thumbnailFilename ? [{ filename: asset.thumbnailFilename }] : []),
+                    ...(asset.generatedMaskFilename ? [{ filename: asset.generatedMaskFilename }] : []),
                 ]), { session });
                 await Asset.deleteMany({ _id: { $in: doomed.map((asset) => asset._id) } }, { session });
             }

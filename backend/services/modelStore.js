@@ -91,8 +91,9 @@ async function download(url, target, sha256, label) {
  *   every file the model needs, by role. `envPath` names an env variable that,
  *   when set, points at a local copy used instead (not checksummed).
  * @param {string} [spec.main] - role of the ONNX graph `session()` loads by default ("model")
- * @param {{ inputName: string, inputShape: number[] } | false} [spec.gpu] - a representative input
- *   for timing the model on each device. False keeps the model on the CPU.
+ * @param {{ inputName: string, inputShape: number[], inputs?: Object<string, number[]> } | false} [spec.gpu] -
+ *   a representative input for timing the model on each device (`inputs` for a
+ *   graph with several inputs, by name and shape). False keeps the model on the CPU.
  * @param {number} [spec.idleMs] - release the session after this long unused
  * @param {boolean} [spec.optional] - skipped by `models:fetch` unless named, for very large downloads
  */
@@ -133,7 +134,7 @@ function defineModel(spec) {
     }
 
     const deviceSpec = (file) => spec.gpu
-        ? { key: `${spec.version}|${spec.files[main].sha256.slice(0, 12)}`, file, inputName: spec.gpu.inputName, inputShape: spec.gpu.inputShape }
+        ? { key: `${spec.version}|${spec.files[main].sha256.slice(0, 12)}`, file, inputName: spec.gpu.inputName, inputShape: spec.gpu.inputShape, inputs: spec.gpu.inputs }
         : null;
 
     /** Where the main graph runs on this machine, timing the devices on first call. */

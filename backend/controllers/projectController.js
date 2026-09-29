@@ -87,6 +87,7 @@ const deleteProject = async (req, res) => {
                 const doomed = assets.flatMap((asset) => [
                     { filename: asset.filename },
                     ...(asset.thumbnailFilename ? [{ filename: asset.thumbnailFilename }] : []),
+                    ...(asset.generatedMaskFilename ? [{ filename: asset.generatedMaskFilename }] : []),
                 ]);
                 await PendingFileDeletion.insertMany(doomed, { session });
             }

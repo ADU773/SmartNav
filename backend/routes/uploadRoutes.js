@@ -4,7 +4,8 @@ const router = express.Router();
 const upload = require("../middleware/uploadMiddleware");
 const { uploadImage, getUploads, deleteAsset } = require("../controllers/uploadController");
 const { requireAuth } = require("../middleware/authMiddleware");
-const { uploadLimiter } = require("../middleware/rateLimit");
+const { uploadLimiter, fillLimiter } = require("../middleware/rateLimit");
+const { startFill } = require("../controllers/fillController");
 
 router.use(requireAuth);
 
@@ -13,5 +14,7 @@ router.get("/", getUploads);
 // 500 MB body are written to disk.
 router.post("/", uploadLimiter, upload.single("image"), uploadImage);
 router.delete("/:id", deleteAsset);
+// Fills a panorama's black gaps with the LaMa model; a background job.
+router.post("/:id/fill", fillLimiter, startFill);
 
 module.exports = router;

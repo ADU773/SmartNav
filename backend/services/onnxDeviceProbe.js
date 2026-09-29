@@ -4,8 +4,9 @@
  * Run as a child process by onnxDevice.js, one device per process, so a GPU
  * driver that crashes the process (as some do) only rules out that device.
  *
- * Usage: node onnxDeviceProbe.js '<json: { file, inputName, inputShape, device }>'
- * where device is "cpu" or a DirectML adapter index.
+ * Usage: node onnxDeviceProbe.js '<json: { file, inputName, inputShape, inputs?, device }>'
+ * where device is "cpu" or a DirectML adapter index, and `inputs` (name to
+ * shape) replaces inputName/inputShape for a graph with several inputs.
  */
 
 const ort = require("onnxruntime-node");
@@ -13,15 +14,18 @@ const ort = require("onnxruntime-node");
 const RUNS = 3;
 
 (async () => {
-    const { file, inputName, inputShape, device } = JSON.parse(process.argv[2]);
+    const { file, inputName, inputShape, inputs, device } = JSON.parse(process.argv[2]);
     const options = device === "cpu"
         ? {}
         : { executionProviders: [{ name: "dml", deviceId: device }], enableMemPattern: false, executionMode: "sequential" };
     const session = await ort.InferenceSession.create(file, { graphOptimizationLevel: "all", ...options });
-    const size = inputShape.reduce((a, b) => a * b, 1);
-    const data = new Float32Array(size);
-    for (let i = 0; i < size; i += 1) data[i] = (i * 37) % 255;
-    const feeds = { [inputName]: new ort.Tensor("float32", data, inputShape) };
+    const feeds = {};
+    for (const [name, shape] of Object.entries(inputs || { [inputName]: inputShape })) {
+        const size = shape.reduce((a, b) => a * b, 1);
+        const data = new Float32Array(size);
+        for (let i = 0; i < size; i += 1) data[i] = ((i * 37) % 255) / 255;
+        feeds[name] = new ort.Tensor("float32", data, shape);
+    }
     await session.run(feeds); // warm-up: the first run includes one-time setup
     const times = [];
     for (let i = 0; i < RUNS; i += 1) {

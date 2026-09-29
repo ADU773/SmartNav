@@ -11,6 +11,7 @@ const sharp = require("sharp");
 const Scene = require("../models/Scene");
 const SceneEmbedding = require("../models/SceneEmbedding");
 const { resolveUploadFile } = require("./fileCleanup");
+const { blankGeneratedPixels } = require("./generatedPixels");
 const { embedPixels, modelVersion } = require("./placeModel");
 const {
     INPUT_SIZE,
@@ -74,6 +75,9 @@ async function indexScene(scene) {
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
+
+    // Match visitors only against what was photographed, not AI-filled gaps.
+    await blankGeneratedPixels(file, data, info);
 
     const views = [];
     let skippedViews = 0;

@@ -26,6 +26,7 @@ import SearchBar from '../../components/common/SearchBar';
 import EmptyState from '../../components/common/EmptyState';
 import { useProject } from "../../contexts/ProjectContext";
 import './AssetManager.css';
+import FillGapsButton from '../../components/panorama/FillGapsButton';
 
 const { Dragger } = Upload;
 const ALLOWED_ASSET_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.exr'];
@@ -340,12 +341,15 @@ export default function AssetManager() {
       >
         {previewAsset && (
           isPreviewableImage(previewAsset) ? (
-            <Image
-              src={getImageUrl(previewAsset.path)}
-              alt={previewAsset.displayName}
-              style={{ width: '100%', borderRadius: 8 }}
-              preview={false}
-            />
+            <>
+              <Image
+                src={getImageUrl(previewAsset.path)}
+                alt={previewAsset.displayName}
+                style={{ width: '100%', borderRadius: 8 }}
+                preview={false}
+              />
+              <FillGapsButton key={previewAsset.id} assetId={previewAsset.id} onFilled={loadAssets} />
+            </>
           ) : (
             <div className="asset-manager__exr-preview" style={{ height: 240, borderRadius: 8 }}>
               <PictureOutlined />
