@@ -53,8 +53,28 @@ function unavailable(error) {
     return wrapped;
 }
 
-/** Loads the weights on first use; a failure is not cached. */
+function stillDownloading() {
+    const error = new Error("The chat model is still downloading (1.1 GB, once). Try again in a few minutes, or run `npm run models:fetch chat` in the backend.");
+    error.status = 503;
+    return error;
+}
+
+/**
+ * Loads the weights on first use; a failure is not cached. A missing file is
+ * never downloaded inside a chat request (the browser would time out long
+ * before 1.1 GB arrives): the download starts in the background and the
+ * request is told to retry.
+ */
 function load() {
+    if (!loading && !model.isCached()) {
+        if (process.env.CHAT_MODEL_PATH) {
+            const error = new Error(`CHAT_MODEL_PATH points at ${process.env.CHAT_MODEL_PATH}, which does not exist.`);
+            error.status = 503;
+            return Promise.reject(error);
+        }
+        model.ensureFiles().catch(() => {}); // shared and deduplicated by the model store
+        return Promise.reject(stillDownloading());
+    }
     loading ||= (async () => {
         const { getLlama } = await import("node-llama-cpp");
         const paths = await model.ensureFiles();
@@ -118,4 +138,4 @@ function setTestReply(fn) {
     testReply = fn;
 }
 
-module.exports = { reply, release, setTestReply, modelVersion: () => MODEL_VERSION };
+module.exports = { reply, release, setTestReply, modelVersion: () => MODEL_VERSION, CONTEXT_SIZE, MAX_REPLY_TOKENS };

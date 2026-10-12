@@ -13,7 +13,9 @@ const AIService = {
    * Future: apiClient.post(API_ENDPOINTS.AI_CHAT, { message, context })
    */
   async sendMessage(message, context = {}) {
-    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context });
+    // Longer than the default 30 s: the first message loads the local model
+    // (about 20 s) and replies are queued one at a time.
+    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context }, { timeout: 120000 });
     return response.data;
   },
 

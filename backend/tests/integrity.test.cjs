@@ -383,6 +383,19 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         }
     });
 
+    await t.test('the chat context stays within its budget on large projects', () => {
+        const { chatContext } = require('../controllers/featureController');
+        const labels = Array.from({ length: 500 }, (_, i) => ({ label: `object${i}` }));
+        const scenes = Array.from({ length: 400 }, (_, i) => ({ name: `Scene ${i}`, hotspots: [], detections: labels }));
+        const context = chatContext(scenes);
+        assert.ok(context.length <= 7000 + 60, `context is ${context.length} characters`);
+        assert.match(context, /and \d+ more scenes not listed$/);
+        // At most 12 objects per scene, most frequent first.
+        assert.equal(chatContext([{ name: 'S', detections: labels }]).split(',').length, 12);
+        assert.equal(chatContext([{ name: 'S', detections: [{ label: 'a' }, { label: 'b' }, { label: 'b' }] }]), 'S (0 connections; contains: b, a)');
+        assert.equal(chatContext([]), 'No scenes created yet');
+    });
+
     await t.test('unsupported transactions fail closed with a setup error', async (sub) => {
         sub.mock.method(mongoose.connection, 'transaction', async () => { throw Object.assign(new Error('Standalone MongoDB'), { code: 20 }); });
         await assert.rejects(transaction(async () => assert.fail('must not run')), (error) => error.status === 503 && /replica set/.test(error.message));
