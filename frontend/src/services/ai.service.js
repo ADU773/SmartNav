@@ -1,6 +1,6 @@
 /**
  * SmartNav360 — AI Service (Placeholder)
- * Architecture-ready for Gemini AI integration.
+ * Chat answers come from the backend, which runs a local language model.
  * Replace placeholder logic when AI backend endpoints are implemented.
  */
 
@@ -13,7 +13,9 @@ const AIService = {
    * Future: apiClient.post(API_ENDPOINTS.AI_CHAT, { message, context })
    */
   async sendMessage(message, context = {}) {
-    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context });
+    // Longer than the default 30 s: the first message loads the local model
+    // (about 20 s) and replies are queued one at a time.
+    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context }, { timeout: 120000 });
     return response.data;
   },
 

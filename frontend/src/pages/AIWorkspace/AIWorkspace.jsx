@@ -78,7 +78,7 @@ export default function AIWorkspace() {
               <div>
                 <h4>Metadata Generation</h4>
                 <p>Auto-generate scene descriptions</p>
-                <Tag>Ready with Gemini key</Tag>
+                <Tag>Local model</Tag>
               </div>
             </div>
           </Card>
@@ -86,8 +86,8 @@ export default function AIWorkspace() {
           {/* Integration Status */}
           <Card title="Integration Status" style={{ marginTop: 16 }}>
             <div className="ai-workspace__status">
-              <span>Gemini API</span>
-              <Tag color={currentProject ? 'green' : 'default'}>{currentProject ? 'Project selected' : 'Choose a project'}</Tag>
+              <span>Chat Assistant</span>
+              <Tag color={currentProject ? 'green' : 'default'}>{currentProject ? 'Local model' : 'Choose a project'}</Tag>
             </div>
             <div className="ai-workspace__status">
               <span>Navigation Engine</span>

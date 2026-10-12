@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const Project = require("../models/Project");
 const Scene = require("../models/Scene");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
+const chatModel = require("../services/ml/chatModel");
 const { ACCESS_MODES, requireId, pickFields, sendError, withProject, readableProject, validateEvent, fail } = require("../services/integrity");
 
 // Relative effort of traversing each connection type. Multiplied into the
@@ -74,6 +75,38 @@ const shortestPath = async (req, res) => {
   } catch (error) { sendError(res, error); }
 };
 
+const CHAT_MAX_MESSAGE_CHARS = 2000;
+// The local model's window is 4096 tokens, of which the reply may use 512 and
+// the message up to ~700 (2000 characters). The scene list gets what is left,
+// counted at a cautious 3 characters per token.
+const CHAT_CONTEXT_CHARS = 7000;
+const CHAT_OBJECTS_PER_SCENE = 12;
+
+/**
+ * Describes the project's scenes for the assistant within a fixed size, so a
+ * large project cannot overflow the model's window. Detected objects let it
+ * answer "where is the printer?"; each scene lists its most frequent ones.
+ */
+function chatContext(scenes, budget = CHAT_CONTEXT_CHARS) {
+  if (!scenes.length) return "No scenes created yet";
+  const parts = [];
+  let used = 0;
+  for (const [index, scene] of scenes.entries()) {
+    const counts = new Map();
+    for (const { label } of scene.detections || []) if (label) counts.set(label, (counts.get(label) || 0) + 1);
+    const objects = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, CHAT_OBJECTS_PER_SCENE).map(([label]) => label);
+    const part = `${String(scene.name).slice(0, 80)} (${scene.hotspots?.length || 0} connections${objects.length ? `; contains: ${objects.join(", ")}` : ""})`;
+    const remaining = scenes.length - index;
+    if (used + part.length + 2 > budget) {
+      parts.push(`and ${remaining} more scene${remaining === 1 ? "" : "s"} not listed`);
+      break;
+    }
+    parts.push(part);
+    used += part.length + 2;
+  }
+  return parts.join("; ");
+}
+
 const aiChat = async (req, res) => {
   try {
     const { message, projectId } = req.body;
@@ -81,21 +114,24 @@ const aiChat = async (req, res) => {
       requireId(projectId, "project ID");
       await readableProject(projectId, req.user.id);
     }
-    const scenes = projectId ? await Scene.find({ projectId }).select("name metadata hotspots detections").lean() : [];
-    // Detected objects let the assistant answer questions like "where is the
-    // printer?" from what is actually visible in each panorama.
-    const describe = (s) => {
-      const objects = [...new Set((s.detections || []).map((d) => d.label))];
-      return `${s.name} (${s.hotspots?.length || 0} connections${objects.length ? `; contains: ${objects.join(", ")}` : ""})`;
-    };
-    const context = scenes.map(describe).join("; ") || "No scenes created yet";
-    if (process.env.GEMINI_API_KEY) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `You are SmartNav360's concise navigation assistant. Project scenes: ${context}. User: ${message}` }] }] }) });
+    if (typeof message !== "string" || !message.trim()) fail(400, "Write a message first.");
+    if (message.length > CHAT_MAX_MESSAGE_CHARS) fail(400, `Keep messages under ${CHAT_MAX_MESSAGE_CHARS} characters.`);
+    const scenes = projectId ? await Scene.find({ projectId }).select("name hotspots detections").lean() : [];
+    const context = chatContext(scenes);
+    const system = "You are SmartNav360's concise navigation assistant for a 360° indoor tour. "
+      + "Answer only from the project scenes listed below; if the answer is not there, say so. "
+      + `Project scenes: ${context}.`;
+
+    // Gemini only when explicitly chosen; otherwise the local model answers.
+    if (process.env.LLM_PROVIDER === "gemini") {
+      if (!process.env.GEMINI_API_KEY) fail(503, "LLM_PROVIDER is gemini but GEMINI_API_KEY is not set.");
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `${system} User: ${message}` }] }] }) });
       const data = await response.json();
-      if (response.ok) return res.json({ success: true, data: { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "I could not generate a response." } });
+      if (response.ok) return res.json({ success: true, data: { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "I could not generate a response.", model: "gemini" } });
       return res.status(502).json({ success: false, message: `Gemini could not answer: ${data.error?.message || "the provider rejected the request."}` });
     }
-    res.json({ success: true, data: { reply: `I can help with this project. Available scenes: ${context}. Add GEMINI_API_KEY to backend/.env to enable Gemini answers.` } });
+    const reply = await chatModel.reply({ system, message: message.trim() });
+    res.json({ success: true, data: { reply: reply || "I could not generate a response.", model: chatModel.modelVersion() } });
   } catch (error) { sendError(res, error); }
 };
 
@@ -230,4 +266,4 @@ const getPublishedProject = async (req, res) => {
   } catch (error) { sendError(res, error); }
 };
 
-module.exports = { shortestPath, aiChat, trackEvent, getAnalytics, publishProject, exportProject, getPublishedProject, ACCESS_WEIGHT };
+module.exports = { shortestPath, aiChat, chatContext, trackEvent, getAnalytics, publishProject, exportProject, getPublishedProject, ACCESS_WEIGHT };

@@ -40,7 +40,7 @@ export default function ChatWindow({ onSend, messages = [], loading }) {
           <div className="chat-window__empty">
             <RobotOutlined className="chat-window__empty-icon" />
             <h3>AI Workspace</h3>
-            <p>Ask about your project or request navigation assistance. Gemini responses activate when its private API key is configured.</p>
+            <p>Ask about your project or request navigation assistance. Answers come from a language model running on the SmartNav server, so no API key is needed.</p>
             <div className="chat-window__prompts">
               <p className="chat-window__prompts-label">Suggested questions</p>
               <Space wrap>
