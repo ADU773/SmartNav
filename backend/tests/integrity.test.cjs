@@ -361,6 +361,28 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         assert.equal((await request('GET', `/scenes?projectId=${p.id}&limit=99999`)).body.meta.limit, 200);
     });
 
+    await t.test('the chat assistant answers from the local model with the project as context', async () => {
+        const chatModel = require('../services/ml/chatModel');
+        const seen = [];
+        chatModel.setTestReply((input) => { seen.push(input); return 'Try scene B.'; });
+        try {
+            const { p, a } = await fixture();
+            await Scene.updateOne({ _id: a.id }, { $set: { detections: [{ label: 'printer', confidence: 0.9 }] } });
+            const answer = await request('POST', '/ai/chat', { message: 'Where is the printer?', projectId: p.id });
+            assert.equal(answer.status, 200);
+            assert.equal(answer.body.data.reply, 'Try scene B.');
+            assert.equal(seen.length, 1);
+            assert.equal(seen[0].message, 'Where is the printer?');
+            assert.match(seen[0].system, /A \(\d+ connections; contains: printer\)/);
+            assert.equal((await request('POST', '/ai/chat', { message: '   ', projectId: p.id })).status, 400);
+            // Another account cannot ask about this project's scenes.
+            assert.equal((await requestAs(other)('POST', '/ai/chat', { message: 'hi', projectId: p.id })).status, 404);
+            assert.equal(seen.length, 1);
+        } finally {
+            chatModel.setTestReply(null);
+        }
+    });
+
     await t.test('unsupported transactions fail closed with a setup error', async (sub) => {
         sub.mock.method(mongoose.connection, 'transaction', async () => { throw Object.assign(new Error('Standalone MongoDB'), { code: 20 }); });
         await assert.rejects(transaction(async () => assert.fail('must not run')), (error) => error.status === 503 && /replica set/.test(error.message));

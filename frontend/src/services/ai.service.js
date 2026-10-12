@@ -1,6 +1,6 @@
 /**
  * SmartNav360 — AI Service (Placeholder)
- * Architecture-ready for Gemini AI integration.
+ * Chat answers come from the backend, which runs a local language model.
  * Replace placeholder logic when AI backend endpoints are implemented.
  */
 

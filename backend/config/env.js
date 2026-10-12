@@ -46,11 +46,12 @@ const schema = z.object({
     // Public base URL files are served from (a CDN or the bucket's website URL).
     S3_PUBLIC_URL: z.string().url().optional(),
 
-    // Which language model answers in the AI Workspace: gemini, ollama (local),
-    // or auto (Gemini when GEMINI_API_KEY is set, else Ollama when reachable).
-    LLM_PROVIDER: z.enum(["auto", "gemini", "ollama"]).default("auto"),
-    OLLAMA_URL: z.string().url().default("http://127.0.0.1:11434"),
-    OLLAMA_MODEL: z.string().default("qwen2.5:1.5b"),
+    // Which language model answers in the AI Workspace: local (a model run in
+    // this process, no key needed) or gemini (needs GEMINI_API_KEY). "auto" and
+    // the retired "ollama" setting both mean local.
+    LLM_PROVIDER: z.enum(["auto", "local", "gemini", "ollama"]).default("local"),
+    // A GGUF file to use instead of the downloaded chat model.
+    CHAT_MODEL_PATH: z.string().optional(),
 });
 
 const DEV_SECRET = "development-only-insecure-secret-change-me";

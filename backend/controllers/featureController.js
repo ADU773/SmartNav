@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const Project = require("../models/Project");
 const Scene = require("../models/Scene");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
+const chatModel = require("../services/ml/chatModel");
 const { ACCESS_MODES, requireId, pickFields, sendError, withProject, readableProject, validateEvent, fail } = require("../services/integrity");
 
 // Relative effort of traversing each connection type. Multiplied into the
@@ -88,14 +89,23 @@ const aiChat = async (req, res) => {
       const objects = [...new Set((s.detections || []).map((d) => d.label))];
       return `${s.name} (${s.hotspots?.length || 0} connections${objects.length ? `; contains: ${objects.join(", ")}` : ""})`;
     };
+    if (typeof message !== "string" || !message.trim()) fail(400, "Write a message first.");
+    if (message.length > 2000) fail(400, "Keep messages under 2000 characters.");
     const context = scenes.map(describe).join("; ") || "No scenes created yet";
-    if (process.env.GEMINI_API_KEY) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `You are SmartNav360's concise navigation assistant. Project scenes: ${context}. User: ${message}` }] }] }) });
+    const system = "You are SmartNav360's concise navigation assistant for a 360° indoor tour. "
+      + "Answer only from the project scenes listed below; if the answer is not there, say so. "
+      + `Project scenes: ${context}.`;
+
+    // Gemini only when explicitly chosen; otherwise the local model answers.
+    if (process.env.LLM_PROVIDER === "gemini") {
+      if (!process.env.GEMINI_API_KEY) fail(503, "LLM_PROVIDER is gemini but GEMINI_API_KEY is not set.");
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: `${system} User: ${message}` }] }] }) });
       const data = await response.json();
-      if (response.ok) return res.json({ success: true, data: { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "I could not generate a response." } });
+      if (response.ok) return res.json({ success: true, data: { reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "I could not generate a response.", model: "gemini" } });
       return res.status(502).json({ success: false, message: `Gemini could not answer: ${data.error?.message || "the provider rejected the request."}` });
     }
-    res.json({ success: true, data: { reply: `I can help with this project. Available scenes: ${context}. Add GEMINI_API_KEY to backend/.env to enable Gemini answers.` } });
+    const reply = await chatModel.reply({ system, message: message.trim() });
+    res.json({ success: true, data: { reply: reply || "I could not generate a response.", model: chatModel.modelVersion() } });
   } catch (error) { sendError(res, error); }
 };
 
