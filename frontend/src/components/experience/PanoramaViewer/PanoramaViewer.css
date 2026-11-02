@@ -242,7 +242,7 @@
 }
 .panorama-viewer__turn--right { right:20px; flex-direction:row-reverse; padding:12px 14px 12px 18px; text-align:right; }
 .panorama-viewer__turn--left { left:20px; }
-.panorama-viewer__turn--around { top:auto; bottom:88px; left:50%; transform:translateX(-50%); }
+.panorama-viewer__turn--around, .panorama-viewer__turn--ahead { top:auto; bottom:88px; left:50%; transform:translateX(-50%); }
 .panorama-viewer__turn--left .panorama-viewer__turn-arrow { --nudge:-5px; }
 .panorama-viewer__turn--right .panorama-viewer__turn-arrow { --nudge:5px; }
 .panorama-viewer__turn:hover { background:rgba(32,33,36,.95); }

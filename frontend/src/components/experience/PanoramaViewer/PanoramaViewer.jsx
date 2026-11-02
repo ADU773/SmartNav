@@ -258,9 +258,10 @@ export default function PanoramaViewer({
   }, [hotspots, sceneId, sceneImage, editMode, selectedHotspotIndex, pendingPin, targetNames, navigationTargetId, navigationTargetName]);
 
   /* ---- Route guide: floor arrows towards the next stop ---- */
-  const routeHotspot = !editMode && navigationTargetId
-    ? (hotspots || []).find((hotspot) => String(hotspot.targetScene) === String(navigationTargetId))
-    : undefined;
+  const routeHotspot = editMode ? undefined : navigationTargetId
+    ? hotspots?.find(hotspot => String(hotspot.targetScene) === String(navigationTargetId))
+    : miniMap && !miniMap.routePath?.length && hotspots?.length === 1 ? hotspots[0] : undefined;
+  const nextName = targetNames?.get(String(routeHotspot?.targetScene)) || navigationTargetName || routeHotspot?.label;
   const routeYaw = routeHotspot?.yaw;
   const routePitch = routeHotspot?.pitch;
   const hasRouteTarget = Number.isFinite(routeYaw) && Number.isFinite(routePitch);
@@ -275,7 +276,7 @@ export default function PanoramaViewer({
 
   const hint = hasRouteTarget && showGuide ? turnHint(viewYaw, routeYaw) : null;
   const faceRouteTarget = () => {
-    viewerRef.current?.lookTo({ yaw: routeYaw, pitch: 0 }, { transitionDuration: 900 });
+    viewerRef.current?.lookTo({ yaw: routeYaw, pitch: routePitch }, { transitionDuration: 900 });
   };
 
   return (
@@ -292,17 +293,17 @@ export default function PanoramaViewer({
         </div>
       )}
 
-      {hint && (
+      {hasRouteTarget && showGuide && (
         <button
           type="button"
-          className={`panorama-viewer__turn panorama-viewer__turn--${hint}`}
+          className={`panorama-viewer__turn panorama-viewer__turn--${hint || "ahead"}`}
           onClick={faceRouteTarget}
-          aria-label={`Turn ${hint === "around" ? "around" : hint} to face the next stop`}
+          aria-label={`Face ${nextName || "the next hotspot"}`}
         >
-          <span className="panorama-viewer__turn-arrow" aria-hidden="true">{hint === "left" ? "←" : hint === "right" ? "→" : "↻"}</span>
+          <span className="panorama-viewer__turn-arrow" aria-hidden="true"><span style={{ transform: `rotate(${routeYaw - viewYaw}rad)` }}>↑</span></span>
           <span>
-            <strong>{hint === "around" ? "Turn around" : `Turn ${hint}`}</strong>
-            {navigationTargetName && <small>Next: {navigationTargetName}</small>}
+            <strong>{hint ? `Turn ${hint}` : "Ahead"}</strong>
+            {nextName && <small>Next: {nextName}</small>}
           </span>
         </button>
       )}
