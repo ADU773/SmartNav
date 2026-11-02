@@ -2,7 +2,9 @@ const router = require("express").Router();
 const features = require("../controllers/featureController");
 const { requireAuth, optionalAuth } = require("../middleware/authMiddleware");
 
-router.get("/navigation/path", requireAuth, features.shortestPath);
+// Visitors of a published tour ask for routes without signing in; the
+// controller only allows that for a published project unless the caller owns it.
+router.get("/navigation/path", optionalAuth, features.shortestPath);
 router.post("/ai/chat", requireAuth, features.aiChat);
 // Anonymous visitors of a published tour emit analytics; the controller only
 // accepts events for a published project unless the caller owns it.

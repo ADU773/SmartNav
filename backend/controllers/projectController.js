@@ -42,7 +42,16 @@ const getProject = async (req, res) => {
 const updateProject = async (req, res) => {
     try {
         requireId(req.params.id, "project ID");
-        const data = pickFields(req.body, ["name", "description", "floorPlan"]);
+        const data = pickFields(req.body, ["name", "description", "floorPlan", "assistantInstructions", "floorPlanWidthMeters"]);
+        if (data.floorPlanWidthMeters !== undefined && data.floorPlanWidthMeters !== null
+            && !(Number.isFinite(data.floorPlanWidthMeters) && data.floorPlanWidthMeters > 0)) {
+            fail(400, "floorPlanWidthMeters must be a positive number of metres.");
+        }
+        if (data.assistantInstructions !== undefined) {
+            if (typeof data.assistantInstructions !== "string") fail(400, "assistantInstructions must be text.");
+            data.assistantInstructions = data.assistantInstructions.trim();
+            if (data.assistantInstructions.length > 1500) fail(400, "Keep the assistant's instructions under 1500 characters.");
+        }
         const project = await withProject(req.params.id, async (current, session) => {
             const update = { ...data };
             if (update.floorPlan !== undefined) update.floorPlan = await validateAssetPath(update.floorPlan, current._id, session);

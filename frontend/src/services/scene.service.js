@@ -65,6 +65,19 @@ const SceneService = {
     );
     return response.data;
   },
+
+  /**
+   * Link two scenes from their pins on the floor plan. The server works out
+   * each hotspot's direction and the distance, and adds (or updates) the
+   * hotspot in both scenes.
+   * @param {string} sourceSceneId
+   * @param {{ targetSceneId: string, access?: string, label?: string, twoWay?: boolean }} data
+   * @returns {Promise<object>} { success, data: { source, target, distance, directions } }
+   */
+  async linkScenes(sourceSceneId, data) {
+    const response = await apiClient.post(`${API_ENDPOINTS.SCENE_BY_ID(sourceSceneId)}/link`, data);
+    return response.data;
+  },
 };
 
 export default SceneService;

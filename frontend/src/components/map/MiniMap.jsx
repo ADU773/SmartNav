@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EnvironmentOutlined } from '@ant-design/icons';
 import { getImageUrl } from '../../utils/getImageUrl';
 import './MiniMap.css';
@@ -5,6 +6,10 @@ import './MiniMap.css';
 const positionFor = (scene, index) => scene.mapPosition || { x: 20 + ((index * 23) % 60), y: 25 + ((index * 31) % 50) };
 
 export default function MiniMap({ floorPlan, scenes = [], activeSceneId, onSelect, interactive = false, onPlace, heading = 0, routePath = [], routeDistance, onClearRoute }) {
+  // The map takes the floor plan's own shape, so pin positions (percentages)
+  // are positions on the image itself: nothing is cropped, and directions
+  // computed from the pins (map links) are true.
+  const [planAspect, setPlanAspect] = useState(null);
   const byId = new Map(scenes.map((scene, index) => [String(scene._id), { ...scene, position: positionFor(scene, index) }]));
   const routeIds = routePath.map(String);
   const isRouteEdge = (sourceId, targetId) => routeIds.some((id, index) => id === String(sourceId) && routeIds[index + 1] === String(targetId));
@@ -13,8 +18,8 @@ export default function MiniMap({ floorPlan, scenes = [], activeSceneId, onSelec
     const rect = event.currentTarget.getBoundingClientRect();
     onPlace({ x: Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100)), y: Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100)) });
   };
-  return <div className={`mini-map ${interactive ? 'mini-map--interactive' : ''}`} onClick={handleMapClick} role={interactive ? 'application' : undefined}>
-    {floorPlan ? <img className="mini-map__image" src={getImageUrl(floorPlan)} alt="Project floor plan" /> : <div className="mini-map__empty"><EnvironmentOutlined /><span>Add a floor plan image in Map Editor</span></div>}
+  return <div className={`mini-map ${interactive ? 'mini-map--interactive' : ''}`} style={floorPlan && planAspect ? { aspectRatio: planAspect, minHeight: 0 } : undefined} onClick={handleMapClick} role={interactive ? 'application' : undefined}>
+    {floorPlan ? <img className="mini-map__image" src={getImageUrl(floorPlan)} alt="Project floor plan" onLoad={(event) => { const { naturalWidth: w, naturalHeight: h } = event.currentTarget; if (w && h) setPlanAspect(`${w} / ${h}`); }} /> : <div className="mini-map__empty"><EnvironmentOutlined /><span>Add a floor plan image in Map Editor</span></div>}
     <svg className="mini-map__routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       {scenes.flatMap((scene, index) => (scene.hotspots || []).map((spot, routeIndex) => {
         const source = positionFor(scene, index); const target = byId.get(String(spot.targetScene))?.position;

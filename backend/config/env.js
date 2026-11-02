@@ -46,12 +46,24 @@ const schema = z.object({
     // Public base URL files are served from (a CDN or the bucket's website URL).
     S3_PUBLIC_URL: z.string().url().optional(),
 
-    // Which language model answers in the AI Workspace: local (a model run in
-    // this process, no key needed) or gemini (needs GEMINI_API_KEY). "auto" and
-    // the retired "ollama" setting both mean local.
-    LLM_PROVIDER: z.enum(["auto", "local", "gemini", "ollama"]).default("local"),
+    // Which language model answers in the AI Workspace: openai (needs
+    // OPENAI_API_KEY), gemini (needs GEMINI_API_KEY) or local (Qwen3-4B run in
+    // this process, no key; download it with `npm run models:fetch chat`).
+    // auto (the default) uses whichever key is set, OpenAI first. "ollama"
+    // also means local.
+    LLM_PROVIDER: z.enum(["auto", "openai", "gemini", "local", "ollama"]).default("auto"),
+    OPENAI_API_KEY: z.string().optional(),
+    // The OpenAI model (default gpt-5.4-mini); a busy, slow or rate-limited
+    // model falls back to gpt-4.1-mini.
+    OPENAI_MODEL: z.string().regex(/^[A-Za-z0-9._:-]+$/, "OPENAI_MODEL must be a model name such as gpt-5.4-mini.").optional(),
+    // The Gemini model (default gemini-3.5-flash); a busy, slow or
+    // rate-limited model falls back to gemini-2.5-flash.
+    GEMINI_MODEL: z.string().regex(/^[a-z0-9.-]+$/, "GEMINI_MODEL must be a model name such as gemini-3.5-flash.").optional(),
     // A GGUF file to use instead of the downloaded chat model.
     CHAT_MODEL_PATH: z.string().optional(),
+    // true: load the chat model at startup and keep it loaded, instead of on
+    // the first question and unloading it after 10 idle minutes.
+    CHAT_PRELOAD: z.enum(["true", "false"]).optional(),
 });
 
 const DEV_SECRET = "development-only-insecure-secret-change-me";

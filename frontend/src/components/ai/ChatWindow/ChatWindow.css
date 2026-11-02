@@ -117,6 +117,8 @@
 
 .chat-window__bubble-content p {
   margin: 0;
+  /* Replies use line breaks for numbered route steps. */
+  white-space: pre-wrap;
   font-size: var(--font-size-base);
   line-height: var(--line-height-relaxed);
 }

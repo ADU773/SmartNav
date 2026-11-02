@@ -7,6 +7,8 @@ const multer = require("multer");
 
 const { createHttpLogger } = require("./config/logger");
 const { apiLimiter } = require("./middleware/rateLimit");
+const chatModel = require("./services/ml/chatModel");
+const { chatProvider } = require("./controllers/featureController");
 
 const authRoutes = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");
@@ -65,6 +67,7 @@ function createApp(env, logger) {
             success: ready,
             status: ready ? "ok" : "degraded",
             database: states[mongoose.connection.readyState] || "unknown",
+            chatModel: chatProvider() === "local" ? chatModel.status() : "not used",
             uptimeSeconds: Math.round(process.uptime()),
         });
     });

@@ -9,11 +9,10 @@ import { SendOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import './ChatWindow.css';
 
 const SUGGESTED_PROMPTS = [
-  'How do I create a new scene?',
-  'Show the shortest path between two locations.',
-  'What scenes are connected to the entrance?',
-  'Suggest an optimal navigation route.',
-  'Help me organize my project structure.',
+  'List the scenes and how they connect.',
+  'Where can I find a laptop?',
+  'Which connections use stairs?',
+  'What is in each scene?',
 ];
 
 export default function ChatWindow({ onSend, messages = [], loading }) {
@@ -40,7 +39,7 @@ export default function ChatWindow({ onSend, messages = [], loading }) {
           <div className="chat-window__empty">
             <RobotOutlined className="chat-window__empty-icon" />
             <h3>AI Workspace</h3>
-            <p>Ask about your project or request navigation assistance. Answers come from a language model running on the SmartNav server, so no API key is needed.</p>
+            <p>Ask about your scenes, what is in them, or the route from one to another, including step-free routes. Answers come from an AI model (OpenAI or Gemini) that looks up your project's own scenes and routes.</p>
             <div className="chat-window__prompts">
               <p className="chat-window__prompts-label">Suggested questions</p>
               <Space wrap>

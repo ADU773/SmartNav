@@ -19,10 +19,27 @@ test('model store downloads, verifies and caches weights', async (t) => {
     const saved = process.env.MODEL_CACHE_DIR;
     process.env.MODEL_CACHE_DIR = cacheDir;
     const body = Buffer.from('pretend weights');
+    const big = crypto.randomBytes(256 * 1024);
     let requests = 0;
+    let flakyRequests = 0;
+    const ranges = [];
     const server = http.createServer((req, res) => {
         requests += 1;
         if (req.url === '/bad') return res.end('tampered');
+        if (req.url === '/missing') { res.statusCode = 404; return res.end(); }
+        if (req.url === '/flaky') {
+            // The first response breaks off halfway; later ones honour Range.
+            flakyRequests += 1;
+            ranges.push(req.headers.range || null);
+            const start = Number((req.headers.range || '').match(/bytes=(\d+)-/)?.[1] || 0);
+            if (flakyRequests === 1) {
+                res.writeHead(200, { 'Content-Length': big.length });
+                res.write(big.subarray(0, big.length / 2));
+                return setTimeout(() => res.destroy(), 20);
+            }
+            res.writeHead(206, { 'Content-Length': big.length - start, 'Content-Range': `bytes ${start}-${big.length - 1}/${big.length}` });
+            return res.end(big.subarray(start));
+        }
         res.end(body);
     });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -53,7 +70,26 @@ test('model store downloads, verifies and caches weights', async (t) => {
     });
     await assert.rejects(bad.ensureFiles(), /failed its checksum/);
     assert.equal(fs.existsSync(path.join(cacheDir, 'bad.bin')), false, 'a failed download leaves nothing behind');
-    assert.deepEqual(fs.readdirSync(cacheDir).filter((name) => name.endsWith('.tmp')), []);
+    assert.deepEqual(fs.readdirSync(cacheDir).filter((name) => name.endsWith('.part')), []);
+
+    // A dropped connection is retried and resumed from the bytes received.
+    const flaky = modelStore.defineModel({
+        id: 'test-flaky', label: 'Flaky model', version: 'v1', gpu: false,
+        files: { model: { name: 'flaky.bin', url: `${base}/flaky`, sha256: crypto.createHash('sha256').update(big).digest('hex') } },
+    });
+    assert.deepEqual(fs.readFileSync((await flaky.ensureFiles()).model), big);
+    assert.equal(ranges[0], null);
+    assert.equal(ranges[1], `bytes=${big.length / 2}-`);
+    assert.deepEqual(fs.readdirSync(cacheDir).filter((name) => name.endsWith('.part')), []);
+
+    // A wrong address fails at once instead of being retried.
+    const missingModel = modelStore.defineModel({
+        id: 'test-missing', label: 'Missing model', version: 'v1', gpu: false,
+        files: { model: { name: 'missing.bin', url: `${base}/missing`, sha256 } },
+    });
+    const before = requests;
+    await assert.rejects(missingModel.ensureFiles(), /HTTP 404/);
+    assert.equal(requests - before, 1);
 
     // A missing model is reported as unavailable (503), naming the fetch command.
     await assert.rejects(bad.session(), (error) => error.status === 503 && /models:fetch test-bad/.test(error.message));

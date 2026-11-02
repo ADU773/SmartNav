@@ -45,3 +45,19 @@
   background: var(--color-bg-subtle);
   flex-shrink: 0;
 }
+
+.map-editor__side { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.map-editor__plan-row { display:flex; gap:12px; align-items:flex-end; }
+.map-editor__plan-field { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.map-editor__plan-row > div:last-child { display:flex; flex-direction:column; gap:4px; }
+.map-editor__link-card { margin-top:16px; border-color:#1a73e8; }
+.map-editor__muted { margin:0; font-size:var(--font-size-sm); color:var(--color-text-secondary); }
+
+/* Direction setter: a compact 360° view with a fixed centre line. */
+.map-editor__direction-view { position:relative; height:240px; border-radius:var(--radius-md); overflow:hidden; }
+.map-editor__direction-view .panorama-viewer { min-height:0; height:240px; }
+.map-editor__direction-view .panorama-viewer__toolbar,
+.map-editor__direction-view .panorama-viewer__minimap { display:none; }
+.map-editor__north { position:absolute; top:0; bottom:0; left:50%; width:2px; margin-left:-1px; background:#1a73e8; box-shadow:0 0 0 1px rgba(255,255,255,.7); pointer-events:none; }
+.map-editor__north span { position:absolute; top:8px; left:50%; transform:translateX(-50%); padding:3px 8px; border-radius:999px; background:#1a73e8; color:#fff; font-size:11px; font-weight:600; white-space:nowrap; }
+@media (max-width: 640px) { .map-editor__plan-row { flex-direction:column; align-items:stretch; } }

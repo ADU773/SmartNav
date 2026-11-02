@@ -7,10 +7,9 @@
  * so `npm run models:fetch` and GET /api/system/models can list every model
  * without a hand-maintained list.
  *
- * Weights are never committed. They are downloaded once from a pinned URL,
- * streamed to disk under a temporary name while being hashed, and only moved
- * into place when the SHA-256 matches, so a partial or altered download is
- * never used. MODEL_CACHE_DIR moves the cache (default backend/.cache/models);
+ * Weights are never committed. They are downloaded once from a pinned URL to
+ * a partial file (resumed if the connection drops), and only moved into place
+ * when its SHA-256 matches, so a partial or altered download is never used. MODEL_CACHE_DIR moves the cache (default backend/.cache/models);
  * each file can also be pointed at a local copy through its own env variable.
  *
  * GPU sessions run one at a time through a shared queue: a 4 GB laptop GPU
@@ -39,7 +38,7 @@ let gpuQueue = Promise.resolve();
 /** Runs `work` after every GPU run queued before it has finished. */
 function exclusiveGpu(work) {
     const run = gpuQueue.then(work, work);
-    gpuQueue = run.catch(() => {});
+    gpuQueue = run.catch(() => { });
     return run;
 }
 
@@ -60,22 +59,56 @@ async function isVerified(file, sha256) {
     return ok;
 }
 
-/** Downloads `url` to `target`, streaming and hashing; throws on a checksum mismatch. */
+const DOWNLOAD_ATTEMPTS = 6;
+
+/**
+ * Fetches `url` into `partial`, continuing from what is already there when the
+ * server supports ranges. Client errors (4xx) are marked permanent: retrying
+ * cannot fix a wrong address.
+ */
+async function downloadInto(url, partial, label) {
+    const have = fs.existsSync(partial) ? (await fsp.stat(partial)).size : 0;
+    const response = await fetch(url, { redirect: "follow", headers: have ? { Range: `bytes=${have}-` } : {} });
+    if (response.status === 416) return; // nothing left to fetch
+    if (!response.ok || !response.body) {
+        const error = new Error(`Could not download ${label} (HTTP ${response.status}).`);
+        error.permanent = response.status >= 400 && response.status < 500;
+        throw error;
+    }
+    // 206 continues the partial file; a plain 200 means the server sent it all again.
+    const flags = have && response.status === 206 ? "a" : "w";
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(partial, { flags }));
+}
+
+/**
+ * Downloads `url` to `target`; throws on a checksum mismatch. A dropped
+ * connection is retried and resumed from the bytes already received, so a
+ * multi-gigabyte model survives an unreliable network. The partial file is
+ * named after the expected checksum, so a later run resumes it as well.
+ */
 async function download(url, target, sha256, label) {
     await fsp.mkdir(path.dirname(target), { recursive: true });
-    const response = await fetch(url, { redirect: "follow" });
-    if (!response.ok || !response.body) throw new Error(`Could not download ${label} (HTTP ${response.status}).`);
-    const temporary = `${target}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
-    const hash = crypto.createHash("sha256");
+    const partial = `${target}.${sha256.slice(0, 12)}.part`;
     try {
-        const source = Readable.fromWeb(response.body);
-        source.on("data", (chunk) => hash.update(chunk));
-        await pipeline(source, fs.createWriteStream(temporary));
-        if (hash.digest("hex") !== sha256) throw new Error(`The downloaded ${label} failed its checksum and was discarded.`);
-        await fsp.rename(temporary, target);
+        for (let attempt = 1; ; attempt += 1) {
+            try {
+                await downloadInto(url, partial, label);
+                break;
+            } catch (error) {
+                if (error.permanent || attempt === DOWNLOAD_ATTEMPTS) throw error;
+                await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+            }
+        }
+        if (await sha256Of(partial) !== sha256) {
+            await fsp.rm(partial, { force: true });
+            throw new Error(`The downloaded ${label} failed its checksum and was discarded.`);
+        }
+        await fsp.rename(partial, target);
         verified.set(target, sha256);
-    } finally {
-        await fsp.rm(temporary, { force: true });
+    } catch (error) {
+        // Keep a partial file to resume next time, unless it can never be used.
+        if (error.permanent) await fsp.rm(partial, { force: true });
+        throw error;
     }
 }
 
