@@ -203,7 +203,7 @@ export default function PanoramaViewer({
       const isNextRouteStop = String(hotspot.targetScene) === String(navigationTargetId);
       const isSelected = editMode && hotspotIndex === selectedHotspotIndex;
       const targetName = targetNames?.get(String(hotspot.targetScene));
-      const destination = hotspot.label || targetName || "location";
+      const destination = targetName || hotspot.label || "location";
 
       element.className = [
         "smartnav-hotspot",
@@ -212,9 +212,9 @@ export default function PanoramaViewer({
         isSelected && "smartnav-hotspot--selected",
       ].filter(Boolean).join(" ");
 
-      const label = editMode ? `<span class="smartnav-hotspot__label">${escapeHtml(targetName || destination)}</span>` : "";
+      const label = `<span class="smartnav-hotspot__label">${escapeHtml(destination)}</span>`;
       element.innerHTML = isNextRouteStop
-        ? `<span class="smartnav-hotspot__next">Next</span>${ROUTE_SVG}`
+        ? `<span class="smartnav-hotspot__next">Next</span>${ROUTE_SVG}${label}`
         : `${label}${PIN_SVG}`;
 
       element.title = editMode

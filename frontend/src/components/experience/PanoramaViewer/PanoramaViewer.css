@@ -185,6 +185,11 @@
   pointer-events: none;
 }
 .smartnav-hotspot--selected .smartnav-hotspot__label { background: var(--color-primary); }
+.smartnav-hotspot:not(.smartnav-hotspot--edit) .smartnav-hotspot__label {
+  top: calc(100% + 2px);
+  bottom: auto;
+  margin: 0;
+}
 
 @keyframes smartnav-pending-drop { from { transform: translate(-50%, -160%); opacity: 0; } to { transform: translate(-50%, -100%); opacity: 1; } }
 @keyframes smartnav-pending-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
