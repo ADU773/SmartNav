@@ -96,6 +96,11 @@ const sceneSchema = new mongoose.Schema({
         default: undefined,
     },
 
+    // The panorama yaw (radians) that faces the top of the floor plan. With it,
+    // a link drawn on the map becomes a hotspot pointing the right way
+    // (services/mapLinks.js).
+    mapYawOffset: { type: Number, min: -Math.PI, max: Math.PI, default: undefined },
+
     createdAt: {
         type: Date,
         default: Date.now,

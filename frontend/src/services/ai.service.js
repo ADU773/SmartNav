@@ -1,6 +1,6 @@
 /**
  * SmartNav360 — AI Service (Placeholder)
- * Architecture-ready for Gemini AI integration.
+ * Chat answers come from the backend, which asks OpenAI or Gemini (or a local model).
  * Replace placeholder logic when AI backend endpoints are implemented.
  */
 
@@ -10,10 +10,15 @@ import { API_ENDPOINTS } from '../constants/api';
 const AIService = {
   /**
    * Send a chat message to the AI.
-   * Future: apiClient.post(API_ENDPOINTS.AI_CHAT, { message, context })
+   * @param {string} message
+   * @param {{ projectId?: string, history?: { role: 'user'|'assistant', content: string }[] }} context
+   *   history: earlier turns of this conversation, oldest first, so follow-up
+   *   questions ("and back?") make sense. The server trims it to fit.
    */
   async sendMessage(message, context = {}) {
-    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context });
+    // Longer than the default 30 s: route and object questions take a few
+    // model calls, and a busy model is retried on a fallback model.
+    const response = await apiClient.post(API_ENDPOINTS.AI_CHAT, { message, ...context }, { timeout: 120000 });
     return response.data;
   },
 

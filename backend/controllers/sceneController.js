@@ -1,13 +1,24 @@
 const Scene = require("../models/Scene");
+const Asset = require("../models/Asset");
+const { DEFAULT_PITCH, normalizeAngle, mapBearing, mapDistanceMeters, hotspotYaw, estimateOffset } = require("../services/mapLinks");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const SceneEmbedding = require("../models/SceneEmbedding");
 const { requireId, pickFields, sendError, fail, withProject, withScene, readableProject, pagination, pageMeta, validateAssetPath, validateHotspots } = require("../services/integrity");
 
 const HOTSPOT_FIELDS = ["targetSceneId", "label", "yaw", "pitch", "distance", "access"];
+const SCENE_FIELDS = ["projectId", "name", "image", "hotspots", "metadata", "mapPosition", "mapYawOffset"];
+
+/** Checks and wraps a map direction (radians); null clears it. */
+function checkMapYawOffset(data) {
+    if (data.mapYawOffset === undefined || data.mapYawOffset === null) return;
+    if (!Number.isFinite(data.mapYawOffset)) fail(400, "mapYawOffset must be an angle in radians.");
+    data.mapYawOffset = normalizeAngle(data.mapYawOffset);
+}
 
 const createScene = async (req, res) => {
     try {
-        const data = pickFields(req.body, ["projectId", "name", "image", "hotspots", "metadata", "mapPosition"]);
+        const data = pickFields(req.body, SCENE_FIELDS);
+        checkMapYawOffset(data);
         requireId(data.projectId, "project ID");
         const scene = await withProject(data.projectId, async (project, session) => {
             const current = new Scene({ ...data, projectId: project._id });
@@ -82,7 +93,8 @@ const connectScenes = async (req, res) => {
 
 const updateScene = async (req, res) => {
     try {
-        const data = pickFields(req.body, ["projectId", "name", "image", "hotspots", "metadata", "mapPosition"]);
+        const data = pickFields(req.body, SCENE_FIELDS);
+        checkMapYawOffset(data);
         const scene = await withScene(req.params.id, async (current, session) => {
             const update = { ...data };
             if (update.projectId !== undefined) {
@@ -103,4 +115,73 @@ const updateScene = async (req, res) => {
     } catch (error) { sendError(res, error); }
 };
 
-module.exports = { createScene, getScenes, getSceneById, updateScene, deleteScene, connectScenes };
+/**
+ * Links two scenes from the floor plan: computes each hotspot's direction from
+ * the pins and each scene's map direction, and the distance from the floor
+ * plan's scale, then adds (or updates) the hotspot in both scenes at once.
+ */
+const linkScenes = async (req, res) => {
+    try {
+        const data = pickFields(req.body, ["targetSceneId", "access", "label", "twoWay"]);
+        const targetId = requireId(data.targetSceneId, "target scene ID");
+        const access = data.access ?? "flat";
+        const twoWay = data.twoWay !== false;
+        const result = await withScene(req.params.id, async (source, session, project) => {
+            if (String(source._id) === targetId) fail(400, "A scene cannot connect to itself.");
+            const target = await Scene.findOne({ _id: targetId, projectId: project._id }).session(session);
+            if (!target) fail(400, "Every hotspot must target an existing scene in the same project.");
+            for (const scene of [source, target]) {
+                if (!scene.mapPosition) fail(400, `Place "${scene.name}" on the floor plan first.`);
+            }
+
+            // The floor plan's shape keeps angles true on a non-square image.
+            const plan = project.floorPlan
+                ? await Asset.findOne({ projectId: project._id, path: project.floorPlan }).select("width height").session(session).lean()
+                : null;
+            const aspect = plan?.width > 0 && plan?.height > 0 ? plan.height / plan.width : 1;
+            const placed = await Scene.find({ projectId: project._id, mapPosition: { $exists: true } }).select("mapPosition").session(session).lean();
+            const positions = new Map(placed.map((scene) => [String(scene._id), scene.mapPosition]));
+
+            const offsetOf = (scene) => {
+                if (Number.isFinite(scene.mapYawOffset)) return { offset: scene.mapYawOffset, from: "set" };
+                const estimated = estimateOffset(scene, positions, aspect);
+                if (estimated !== null) return { offset: estimated, from: "existing hotspots" };
+                fail(400, `Set the map direction of "${scene.name}" first: turn its 360° view to face the top of the floor plan.`);
+            };
+            const sourceDir = offsetOf(source);
+            const targetDir = twoWay ? offsetOf(target) : null;
+            const distance = mapDistanceMeters(source.mapPosition, target.mapPosition, aspect, project.floorPlanWidthMeters);
+
+            const upsert = async (scene, toScene, yaw) => {
+                const hotspots = scene.hotspots.map((spot) => spot.toObject());
+                const index = hotspots.findIndex((spot) => String(spot.targetScene) === String(toScene._id));
+                const linked = {
+                    targetScene: toScene._id,
+                    label: data.label ?? (index >= 0 ? hotspots[index].label : ""),
+                    yaw,
+                    pitch: index >= 0 ? hotspots[index].pitch : DEFAULT_PITCH,
+                    distance: distance ?? (index >= 0 ? hotspots[index].distance : 0),
+                    access,
+                };
+                if (index >= 0) hotspots[index] = { ...hotspots[index], ...linked };
+                else hotspots.push(linked);
+                await validateHotspots(hotspots, scene, session);
+                scene.hotspots = hotspots;
+                return scene.save({ session });
+            };
+
+            const bearing = mapBearing(source.mapPosition, target.mapPosition, aspect);
+            const savedSource = await upsert(source, target, hotspotYaw(bearing, sourceDir.offset));
+            const savedTarget = twoWay ? await upsert(target, source, hotspotYaw(bearing + Math.PI, targetDir.offset)) : target;
+            return {
+                source: savedSource,
+                target: savedTarget,
+                distance,
+                directions: { [source.name]: sourceDir.from, ...(twoWay ? { [target.name]: targetDir.from } : {}) },
+            };
+        }, { ownerId: req.user.id });
+        res.json({ success: true, message: "Scenes linked from the map.", data: result });
+    } catch (error) { sendError(res, error); }
+};
+
+module.exports = { createScene, getScenes, getSceneById, updateScene, deleteScene, connectScenes, linkScenes };

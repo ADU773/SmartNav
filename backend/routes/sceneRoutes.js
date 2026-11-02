@@ -8,6 +8,7 @@ const {
     updateScene,
     deleteScene,
     connectScenes,
+    linkScenes,
 } = require("../controllers/sceneController");
 const { requireAuth } = require("../middleware/authMiddleware");
 
@@ -21,5 +22,7 @@ router.get("/:id", getSceneById);
 router.put("/:id", updateScene);
 router.delete("/:id", deleteScene);
 router.post("/:id/connect", connectScenes);
+// Creates the hotspots between two scenes from their pins on the floor plan.
+router.post("/:id/link", linkScenes);
 
 module.exports = router;

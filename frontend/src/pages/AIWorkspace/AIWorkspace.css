@@ -43,3 +43,13 @@
 .ai-workspace__status:last-child {
   border-bottom: none;
 }
+
+.ai-workspace__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+.ai-workspace__save {
+  margin-top: var(--space-4);
+}

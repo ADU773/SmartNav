@@ -18,6 +18,7 @@ import {
   AimOutlined,
   VideoCameraOutlined,
   EnvironmentOutlined,
+  ArrowUpOutlined,
 } from "@ant-design/icons";
 
 import { Button, Tooltip, Space } from "antd";
@@ -25,6 +26,7 @@ import { Button, Tooltip, Space } from "antd";
 import "./PanoramaViewer.css";
 import MiniMap from "../../map/MiniMap";
 import { getImageUrl } from "../../../utils/getImageUrl";
+import { addFloorTrail, turnHint } from "./routeGuide";
 
 const DEFAULT_FOV = (90 * Math.PI) / 180;
 
@@ -51,6 +53,8 @@ function escapeHtml(text) {
  * @param {object} [props.miniMap]
  * @param {string} [props.navigationTargetId]
  * @param {string} [props.navigationTargetName]
+ * @param {(view: { yaw: number, pitch: number }) => void} [props.onViewChange] - the camera
+ *   direction (radians) whenever it settles after a change
  */
 export default function PanoramaViewer({
   scene,
@@ -65,6 +69,7 @@ export default function PanoramaViewer({
   miniMap,
   navigationTargetId,
   navigationTargetName,
+  onViewChange,
 }) {
   const mountRef = useRef(null);
   const viewerRef = useRef(null);
@@ -79,11 +84,13 @@ export default function PanoramaViewer({
   // Callbacks are read through refs so a parent passing inline functions does
   // not force the viewer to be torn down and rebuilt on every render.
   const callbacksRef = useRef({});
-  callbacksRef.current = { onNavigate, onPanoramaClick, onHotspotSelect, editMode };
+  callbacksRef.current = { onNavigate, onPanoramaClick, onHotspotSelect, editMode, onViewChange };
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(true);
   const [viewYaw, setViewYaw] = useState(0);
+  // Floor arrows towards the next stop; the visitor can switch them off.
+  const [showGuide, setShowGuide] = useState(true);
 
   useEffect(() => {
     const updateFullscreen = () => {
@@ -129,7 +136,10 @@ export default function PanoramaViewer({
 
     const updateMapHeading = () => {
       cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = requestAnimationFrame(() => setViewYaw(view.yaw()));
+      animationFrameRef.current = requestAnimationFrame(() => {
+        setViewYaw(view.yaw());
+        callbacksRef.current.onViewChange?.({ yaw: view.yaw(), pitch: view.pitch() });
+      });
     };
     view.addEventListener("change", updateMapHeading);
     updateMapHeading();
@@ -247,6 +257,27 @@ export default function PanoramaViewer({
     };
   }, [hotspots, sceneId, sceneImage, editMode, selectedHotspotIndex, pendingPin, targetNames, navigationTargetId, navigationTargetName]);
 
+  /* ---- Route guide: floor arrows towards the next stop ---- */
+  const routeHotspot = !editMode && navigationTargetId
+    ? (hotspots || []).find((hotspot) => String(hotspot.targetScene) === String(navigationTargetId))
+    : undefined;
+  const routeYaw = routeHotspot?.yaw;
+  const routePitch = routeHotspot?.pitch;
+  const hasRouteTarget = Number.isFinite(routeYaw) && Number.isFinite(routePitch);
+  useEffect(() => {
+    const panoScene = sceneRef.current;
+    if (!panoScene || !hasRouteTarget || !showGuide) return undefined;
+    const remove = addFloorTrail(panoScene.hotspotContainer(), { yaw: routeYaw, pitch: routePitch });
+    return () => {
+      if (sceneRef.current === panoScene) remove();
+    };
+  }, [sceneId, sceneImage, hasRouteTarget, routeYaw, routePitch, showGuide]);
+
+  const hint = hasRouteTarget && showGuide ? turnHint(viewYaw, routeYaw) : null;
+  const faceRouteTarget = () => {
+    viewerRef.current?.lookTo({ yaw: routeYaw, pitch: 0 }, { transitionDuration: 900 });
+  };
+
   return (
     <div ref={viewerContainerRef} className={`panorama-viewer ${editMode ? 'panorama-viewer--edit' : ''}`}>
       <div ref={mountRef} className="panorama-viewer__canvas" />
@@ -261,6 +292,21 @@ export default function PanoramaViewer({
         </div>
       )}
 
+      {hint && (
+        <button
+          type="button"
+          className={`panorama-viewer__turn panorama-viewer__turn--${hint}`}
+          onClick={faceRouteTarget}
+          aria-label={`Turn ${hint === "around" ? "around" : hint} to face the next stop`}
+        >
+          <span className="panorama-viewer__turn-arrow" aria-hidden="true">{hint === "left" ? "←" : hint === "right" ? "→" : "↻"}</span>
+          <span>
+            <strong>{hint === "around" ? "Turn around" : `Turn ${hint}`}</strong>
+            {navigationTargetName && <small>Next: {navigationTargetName}</small>}
+          </span>
+        </button>
+      )}
+
       <div className="panorama-viewer__toolbar">
         <Space>
           <Tooltip title="Reset view">
@@ -270,6 +316,19 @@ export default function PanoramaViewer({
           <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
             <Button type="text" icon={<ExpandOutlined />} className="panorama-viewer__tool" onClick={toggleFullscreen} aria-label="Toggle fullscreen" />
           </Tooltip>
+
+          {hasRouteTarget && (
+            <Tooltip title={showGuide ? "Hide floor arrows" : "Show floor arrows"}>
+              <Button
+                type="text"
+                icon={<ArrowUpOutlined />}
+                className={`panorama-viewer__tool ${showGuide ? "panorama-viewer__tool--on" : ""}`}
+                onClick={() => setShowGuide((on) => !on)}
+                aria-pressed={showGuide}
+                aria-label="Floor arrows towards the next stop"
+              />
+            </Tooltip>
+          )}
 
           {miniMap?.scenes?.length > 0 && !showMiniMap && (
             <Tooltip title="Show live map">

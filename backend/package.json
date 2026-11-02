@@ -11,6 +11,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.8.1",
     "multer": "^2.2.0",
+    "node-llama-cpp": "^3.22.1",
     "onnxruntime-node": "^1.30.0",
     "phonemizer": "^1.2.1",
     "pino": "^10.3.1",

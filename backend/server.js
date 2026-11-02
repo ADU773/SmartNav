@@ -36,6 +36,13 @@ setInterval(retryFileCleanup, 60000).unref();
 
 const server = app.listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, "SmartNav360 backend listening");
+    if (env.CHAT_PRELOAD === "true" && require("./controllers/featureController").chatProvider() === "local") {
+        const started = Date.now();
+        require("./services/ml/chatModel").preload().then((loaded) => {
+            if (loaded) logger.info({ ms: Date.now() - started }, "Chat model loaded");
+            else logger.warn("Chat model not loaded; it loads on the first question instead");
+        });
+    }
 });
 
 // Finish in-flight requests before exiting so a deploy does not drop uploads.
