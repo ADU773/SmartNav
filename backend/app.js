@@ -83,24 +83,21 @@ function createApp(env, logger) {
         next();
     });
 
+    const privateMedia = require("./services/privateMedia");
+    app.use("/api", privateMedia.attachLinks);
     app.use("/api/auth", authRoutes);
     app.use("/api/projects", projectRoutes);
     app.use("/api/scenes", sceneRoutes);
     app.use("/api/upload", uploadRoutes);
     app.use("/api", featureRoutes);
+    app.use("/api", require("./routes/privacyRoutes").router);
     app.use("/api/vision", visionRoutes);
     app.use("/api/panorama", panoramaRoutes);
     app.use("/api/locate", locateRoutes);
     // Last: model status lists whatever the routes above have loaded.
     app.use("/api", systemRoutes);
 
-    app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-        // Uploaded filenames are random UUIDs, so a given URL always names the
-        // same bytes and can be cached hard.
-        maxAge: "30d",
-        immutable: true,
-        setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff"),
-    }));
+    app.get("/uploads/:file", privateMedia.serve);
 
     app.get("/", (_req, res) => {
         res.send("SmartNav360 Backend Running");

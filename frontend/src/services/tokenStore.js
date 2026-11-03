@@ -9,6 +9,7 @@
  */
 
 const REFRESH_KEY = 'smartnav360_refresh';
+import { clearMediaLinks } from '../utils/getImageUrl';
 const USER_KEY = 'smartnav360_user';
 
 let accessToken = null;
@@ -70,6 +71,7 @@ export function setSession({ user, accessToken: access, refreshToken }) {
 }
 
 export function clearSession() {
+  clearMediaLinks();
   setAccessToken(null);
   setRefreshToken(null);
   setStoredUser(null);

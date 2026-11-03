@@ -22,7 +22,9 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,7 +38,8 @@
         {
           "cameraPermission": "SmartNav needs the camera to capture panorama frames for your session."
         }
-      ]
+      ],
+      "expo-sqlite"
     ]
   }
 }

@@ -3,6 +3,10 @@ setlocal EnableExtensions
 title SmartNav360 Demo Launcher
 cd /d "%~dp0"
 
+if /i "%~1"=="--backend" goto :backend
+if /i "%~1"=="--frontend" goto :frontend
+if /i "%~1"=="--mobile" goto :mobile
+
 rem ======================================================================
 rem  SmartNav360 demo launcher
 rem
@@ -38,19 +42,20 @@ if errorlevel 1 (
   echo  [X] Node.js is not installed. Install version 20 or newer from https://nodejs.org
   goto :fail
 )
+node -e "const [m,n]=process.versions.node.split('.').map(Number);process.exit((m===20&&n>=19)||(m===22&&n>=12)||m>22?0:1)"
+if errorlevel 1 (
+  echo  [X] Install Node 20.19+ or Node 22.12+ for Vite.
+  goto :fail
+)
 for /f "delims=" %%v in ('node -v') do echo  [OK] Node.js %%v
 
 rem ---- 2. Backend configuration ------------------------------------------
 if not exist "backend\.env" (
+  if "%CHECK_ONLY%"=="1" goto :missingEnv
   copy "backend\.env.example" "backend\.env" >nul
   echo  [!] Created backend\.env from the template.
   echo      Fill in MONGODB_URI and the two JWT secrets, save, then run this again.
   start "" notepad "backend\.env"
-  goto :fail
-)
-findstr /b /c:"MONGODB_URI=" "backend\.env" >nul
-if errorlevel 1 (
-  echo  [X] backend\.env has no MONGODB_URI line. Add your MongoDB connection string.
   goto :fail
 )
 echo  [OK] backend\.env found
@@ -68,22 +73,41 @@ if errorlevel 1 (
 
 rem ---- 3. Packages -------------------------------------------------------
 if not exist "backend\node_modules" (
+  if "%CHECK_ONLY%"=="1" goto :missingPackages
   echo  ... Installing backend packages, this takes a minute the first time
   call npm --prefix backend install --no-audit --no-fund
   if errorlevel 1 goto :fail
 )
 if not exist "frontend\node_modules" (
+  if "%CHECK_ONLY%"=="1" goto :missingPackages
   echo  ... Installing frontend packages, this takes a minute the first time
   call npm --prefix frontend install --no-audit --no-fund
   if errorlevel 1 goto :fail
 )
 if "%RUN_MOBILE%"=="1" if not exist "mobile\node_modules" (
+  if "%CHECK_ONLY%"=="1" goto :missingPackages
   echo  ... Installing phone app packages
   call npm --prefix mobile install --no-audit --no-fund
   if errorlevel 1 goto :fail
 )
 echo  [OK] Packages installed
 
+pushd backend
+node --env-file=.env -e "try {require('./config/runtime').init()} catch {console.error('[X] Invalid backend configuration. Compare backend/.env with .env.example.');process.exit(1)}"
+if errorlevel 1 (
+  popd
+  goto :fail
+)
+for /f "delims=" %%v in ('node --env-file=.env -p "require('./config/runtime').init().PORT"') do set "DEMO_API_PORT=%%v"
+node -e "require('onnxruntime-node'); require('./services/ml/faceModel')"
+if errorlevel 1 (
+  popd
+  echo  [X] Could not load the ONNX face scanner. Check backend npm dependencies.
+  goto :fail
+)
+popd
+echo  [OK] Privacy review dependencies available
+if "%CHECK_ONLY%"=="1" goto :network
 rem ---- 4. AI models ----------------------------------------------------
 rem  Downloaded once, checksum-verified, then reused from the cache. The
 rem  first run also times the CPU and each GPU and remembers the fastest
@@ -98,6 +122,7 @@ if errorlevel 1 (
   for /f "usebackq delims=" %%l in (`findstr /c:" runs on: " "%MODEL_LOG%"`) do echo       %%l
 )
 
+:network
 rem ---- 5. Network address, so a phone can reach the app -----------------
 rem  Picks the connected adapter that has a default gateway, i.e. the Wi-Fi or
 rem  Ethernet the phone shares, and ignores VPN and virtual-machine adapters.
@@ -113,22 +138,22 @@ if defined LANIP (
 
 rem ---- 6. Ports must be free ---------------------------------------------
 set "PORTS_BUSY=0"
-netstat -ano | findstr /r /c:":5000 .*LISTENING" >nul && (
-  echo  [X] Port 5000 is already in use. Run stop-demo.bat or close the other backend window.
+netstat -ano | findstr /r /c:":%DEMO_API_PORT% .*LISTENING" >nul && (
+  echo  [X] Port %DEMO_API_PORT% is already in use. If launched by this demo, run stop-demo.bat; otherwise close the other backend window.
   set "PORTS_BUSY=1"
 )
 netstat -ano | findstr /r /c:":5173 .*LISTENING" >nul && (
-  echo  [X] Port 5173 is already in use. Run stop-demo.bat or close the other frontend window.
+  echo  [X] Port 5173 is already in use. If launched by this demo, run stop-demo.bat; otherwise close the other frontend window.
   set "PORTS_BUSY=1"
 )
 if "%RUN_MOBILE%"=="1" (
   netstat -ano | findstr /r /c:":8081 .*LISTENING" >nul && (
-    echo  [X] Port 8081 is already in use. Run stop-demo.bat or close the other Expo window.
+    echo  [X] Port 8081 is already in use. If launched by this demo, run stop-demo.bat; otherwise close the other Expo window.
     set "PORTS_BUSY=1"
   )
 )
 if "%PORTS_BUSY%"=="0" (
-  if "%RUN_MOBILE%"=="1" (echo  [OK] Ports 5000, 5173 and 8081 are free) else (echo  [OK] Ports 5000 and 5173 are free)
+  if "%RUN_MOBILE%"=="1" (echo  [OK] Ports %DEMO_API_PORT%, 5173 and 8081 are free) else (echo  [OK] Ports %DEMO_API_PORT% and 5173 are free)
 )
 
 rem ---- 6b. Phone app checks ------------------------------------------------
@@ -158,7 +183,6 @@ if "%CHECK_ONLY%"=="1" (
   if "%PORTS_BUSY%"=="1" goto :fail
   echo  Setup looks good. Run start-demo.bat without "check" to start the demo.
   echo.
-  pause
   exit /b 0
 )
 if "%PORTS_BUSY%"=="1" goto :fail
@@ -192,9 +216,9 @@ set "CHAT_PRELOAD=true"
 
 echo.
 echo  ... Starting the backend
-start "SmartNav Backend" cmd /k npm --prefix backend start
+start "SmartNav Backend" cmd /d /s /c ""%~f0" --backend"
 
-powershell -NoProfile -Command "for ($i = 0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://localhost:5000/healthz; if ($r.StatusCode -eq 200) { exit 0 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
+powershell -NoProfile -Command "for ($i = 0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://localhost:%DEMO_API_PORT%/healthz; if ($r.StatusCode -eq 200) { exit 0 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
 if errorlevel 1 (
   echo  [X] The backend did not become ready within 90 seconds.
   echo      Check the "SmartNav Backend" window. The usual cause is MongoDB Atlas
@@ -206,7 +230,7 @@ echo  [OK] Backend running and connected to the database
 rem ---- 8b. Chat --------------------------------------------------------
 rem  Gemini needs nothing loaded. A local model (LLM_PROVIDER=local) loads in
 rem  the background; /healthz reports its state.
-powershell -NoProfile -Command "for ($i = 0; $i -lt 180; $i++) { try { $s = (Invoke-RestMethod -TimeoutSec 2 http://localhost:5000/healthz).chatModel; if ($s -eq 'loaded') { exit 0 }; if ($s -eq 'not loaded') { exit 2 }; if ($s -eq 'not used') { exit 3 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
+powershell -NoProfile -Command "for ($i = 0; $i -lt 180; $i++) { try { $s = (Invoke-RestMethod -TimeoutSec 2 http://localhost:%DEMO_API_PORT%/healthz).chatModel; if ($s -eq 'loaded') { exit 0 }; if ($s -eq 'not loaded') { exit 2 }; if ($s -eq 'not used') { exit 3 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
 if errorlevel 3 (
   echo  [OK] AI Workspace chat uses the OpenAI / Gemini API
 ) else if errorlevel 2 (
@@ -220,7 +244,8 @@ if errorlevel 3 (
 
 rem ---- 9. Frontend -------------------------------------------------------
 echo  ... Starting the frontend
-start "SmartNav Frontend" cmd /k npm --prefix frontend run dev -- --host
+set "VITE_API_PORT=%DEMO_API_PORT%"
+start "SmartNav Frontend" cmd /d /s /c ""%~f0" --frontend"
 
 powershell -NoProfile -Command "for ($i = 0; $i -lt 90; $i++) { try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://localhost:5173; if ($r.StatusCode -eq 200) { exit 0 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
 if errorlevel 1 (
@@ -233,10 +258,10 @@ rem ---- 10. Phone app, optional --------------------------------------------
 rem  Expo is pinned to this computer's network address and port 8081, so the
 rem  QR code printed below (by this window, not Expo) always matches it.
 if "%RUN_MOBILE%"=="1" (
-  set "EXPO_PUBLIC_API_BASE_URL=http://%LANIP%:5000"
+  set "EXPO_PUBLIC_API_BASE_URL=http://%LANIP%:%DEMO_API_PORT%"
   set "REACT_NATIVE_PACKAGER_HOSTNAME=%LANIP%"
   echo  ... Starting the SmartNav Capture phone app ^(Expo^)
-  start "SmartNav Mobile" cmd /k "cd /d mobile && npx expo start --lan --port 8081"
+  start "SmartNav Mobile" cmd /d /s /c ""%~f0" --mobile"
 )
 if "%RUN_MOBILE%"=="1" (
   powershell -NoProfile -Command "for ($i = 0; $i -lt 90; $i++) { try { if ((Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://localhost:8081/status).RawContent -match 'packager-status:running') { exit 0 } } catch {} ; Start-Sleep -Seconds 1 }; exit 1"
@@ -247,13 +272,6 @@ if "%RUN_MOBILE%"=="1" (
     echo  [OK] Expo running at exp://%LANIP%:8081
   )
 )
-rem  Build the app bundle now, so Expo Go does not wait (or time out) for it
-rem  on the first scan. Done in the background; the phone can scan meanwhile.
-if "%RUN_MOBILE%"=="1" (
-  echo  ... Building the phone app bundle in the background
-  start "" /min powershell -NoProfile -WindowStyle Hidden -Command "foreach ($p in 'android', 'ios') { try { $m = Invoke-RestMethod -TimeoutSec 60 -Headers @{ 'expo-platform' = $p; 'Accept' = 'application/expo+json,application/json' } http://localhost:8081; Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 $m.launchAsset.url | Out-Null } catch {} }"
-)
-
 rem ---- 11. Open the app --------------------------------------------------
 start "" "http://%APP_HOST%:5173"
 
@@ -263,16 +281,16 @@ echo    SmartNav360 is running
 echo  ==============================================
 echo.
 echo   App:             http://%APP_HOST%:5173
-echo   Backend health:  http://localhost:5000/healthz
+echo   Backend health:  http://localhost:%DEMO_API_PORT%/healthz
 echo.
 echo   Suggested demo order:
 echo    1. Sign in, or register. The first account becomes the administrator.
 echo    2. Assets          - upload panoramas; thumbnails are made automatically
-echo    3. Scenes          - create scenes with the image picker preview
+echo    3. Scenes          - select a panorama, scan faces, adjust blurs and approve
 echo    4. Hotspots        - click a doorway, pick the destination, add the way back
 echo    5. Panoramic Viewer - scan the QR code with a phone, capture, stitch
 echo    6. Virtual Experience - walk the tour, "Where am I?", step-free routes
-echo    7. Analytics, Floor Plan, AI Workspace, Publish
+echo    7. Deployment - review remaining panoramas and floor plans, then publish
 echo.
 echo   If a phone cannot connect: same Wi-Fi as this computer, and allow
 echo   Node.js through Windows Firewall for this network type.
@@ -298,5 +316,23 @@ exit /b 0
 echo.
 echo  Demo not started. Fix the item marked [X] or [!] above and run this again.
 echo.
-pause
+if not "%CHECK_ONLY%"=="1" pause
 exit /b 1
+:missingEnv
+echo  [X] Missing backend\.env. Copy backend\.env.example and configure it.
+exit /b 1
+:missingPackages
+echo  [X] Missing project dependencies. Run start-demo.bat without check to install.
+exit /b 1
+:backend
+cd /d "%~dp0backend"
+node server.js
+exit /b %errorlevel%
+:frontend
+cd /d "%~dp0frontend"
+node node_modules\vite\bin\vite.js --host --port 5173 --strictPort
+exit /b %errorlevel%
+:mobile
+cd /d "%~dp0mobile"
+node node_modules\expo\bin\cli start --lan --port 8081
+exit /b %errorlevel%

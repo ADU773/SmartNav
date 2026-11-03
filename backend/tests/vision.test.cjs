@@ -246,7 +246,8 @@ test('object detection on scenes', { timeout: 240000 }, async (t) => {
             ] });
             const result = await scan({ 'X-Forwarded-Host': 'attacker.example' });
             assert.equal(result.status, 200);
-            assert.equal(received.imageUrl, `https://api.example.test${remoteScene.image}`, 'built from configuration, not request headers');
+            assert.equal(received.imageUrl.split('?')[0], `https://api.example.test${remoteScene.image}`, 'built from configuration, not request headers');
+            assert.ok(new URL(received.imageUrl).searchParams.get('media'));
             assert.deepEqual(result.body.data.labels, ['person', 'chair', '0']);
             const saved = await Scene.findById(remoteScene._id).lean();
             assert.deepEqual(saved.detections.map((d) => [d.label, d.yawDeg]), [['person', null], ['chair', null], ['0', null]]);
@@ -261,7 +262,7 @@ test('object detection on scenes', { timeout: 240000 }, async (t) => {
             await Scene.updateOne({ _id: remoteScene._id }, { $set: { image: `https://old-host.example/uploads/${file}` } });
             reply = json({ detections: [] });
             assert.equal((await scan()).status, 200);
-            assert.equal(received.imageUrl, `https://api.example.test/uploads/${file}`);
+            assert.equal(received.imageUrl.split('?')[0], `https://api.example.test/uploads/${file}`);
         } finally {
             delete process.env.YOLO_API_URL;
             delete process.env.PUBLIC_API_URL;

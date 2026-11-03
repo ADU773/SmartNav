@@ -76,3 +76,8 @@ access and permission to start a local process. Test image files use unique name
 and are removed individually. The upload regression retains its stubbed database
 checks, while integrity tests exercise real transactions, rollback, concurrent
 writes/deletions, analytics validation, shared files, and durable cleanup retry.
+### Panorama privacy review
+
+Scene creation and Deployment use the local YOLO11s-Face ONNX model by default. Select Nano to compare YOLO11n-Face on the same image. Rescanning replaces the suggested masks in the editor; approving bakes the reviewed copy. YOLOX still supplies separate person hints. Both face models use pinned FP32 weights from [Banaxi-Tech](https://huggingface.co/Banaxi-Tech/face-model), verified by SHA-256. To prefetch both, run `npm run models:fetch -- faces-s faces-n` from the backend. Keep `reviewed-media/` on persistent storage alongside `uploads/` and serve both through the application routes only.
+
+Originals and original thumbnails require owner-issued, file-specific media links. Shared tours return approved raster copies and thumbnails. Previously shared tours with unreviewed media require review; previously downloaded or cached originals cannot be recalled. External scene images must be imported into Assets for review.

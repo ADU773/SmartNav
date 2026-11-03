@@ -417,6 +417,7 @@ const publishProject = async (req, res) => {
     const project = await Project.findOne({ _id: req.params.id, ownerId: req.user.id });
     if (!project) fail(404, "Project not found.");
     project.published = true;
+    await require("../services/privacy").reviewed(project,await Scene.find({projectId:project._id}).select("image").lean());
     project.publishedAt = new Date();
     project.shareToken ||= crypto.randomBytes(24).toString("hex");
     await project.save();
@@ -443,6 +444,17 @@ const getPublishedProject = async (req, res) => {
       .lean();
     if (!project) fail(404, "Published project not found.");
     const scenes = await Scene.find({ projectId: project._id }).lean();
+    const assets=await require("../services/privacy").reviewed(project,scenes);
+    const {publicImage}=require("../routes/privacyRoutes");
+    if(project.floorPlan) project.floorPlan=publicImage(token,assets.get(project.floorPlan));
+    delete project.assistantInstructions;
+    for(const scene of scenes) {
+      delete scene.objectScan;
+      if(!scene.image) continue;
+      const asset=assets.get(scene.image);
+      scene.image=publicImage(token,asset);
+      scene.thumbnailPath=publicImage(token,asset,true);
+    }
     res.json({ success: true, data: { project, scenes } });
   } catch (error) { sendError(res, error); }
 };

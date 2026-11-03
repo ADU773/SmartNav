@@ -3,7 +3,7 @@
  * Centrepiece of SmartNav360 — Three-panel layout with panorama viewer.
  */
 import { useProject } from "../../contexts/ProjectContext";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { List, Tag, Button, Divider, Select, Alert } from 'antd';
 import {
@@ -29,6 +29,7 @@ export default function VirtualExperience() {
   const location = useLocation();
   const { currentProject } = useProject();
   const [scenes, setScenes] = useState([]);
+  const targetNames = useMemo(() => new Map(scenes.map(scene => [String(scene._id), scene.name])), [scenes]);
   const [selectedScene, setSelectedScene] = useState(null);
   const [loading, setLoading] = useState(true);
   const [routeTarget, setRouteTarget] = useState();
@@ -230,6 +231,7 @@ export default function VirtualExperience() {
       <main className="virtual-experience__viewer">
         <PanoramaViewer
           scene={selectedScene}
+          targetNames={targetNames}
           onNavigate={handleNavigate}
           navigationTargetId={nextRouteSceneId}
           navigationTargetName={nextRouteScene?.name}

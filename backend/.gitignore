@@ -3,3 +3,4 @@ node_modules/
 uploads/
 # Downloaded ML model weights (see services/placeModel.js)
 .cache/
+reviewed-media/

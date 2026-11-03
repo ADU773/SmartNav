@@ -5,6 +5,7 @@
  */
 
 import axios from 'axios';
+import { rememberMedia } from '../utils/getImageUrl';
 import { API_BASE_URL, API_ENDPOINTS } from '../constants/api';
 import { getAccessToken, getRefreshToken, setSession, clearSession } from './tokenStore';
 
@@ -58,7 +59,7 @@ async function refreshAccessToken() {
 
 /* ---- Response Interceptor ---- */
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => { rememberMedia(response.data?.mediaLinks); return response; },
   async (error) => {
     const original = error.config;
     const status = error.response?.status;

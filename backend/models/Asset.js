@@ -18,6 +18,11 @@ const assetSchema = new mongoose.Schema({
         type: String,
         default: "",
     },
+    privacyScan: { type: Object, default: undefined },
+    privacy: {
+        type: new mongoose.Schema({ version: String, thumb: String, masks: [Object], approvedAt: Date }, { _id:false }),
+        default: undefined
+    },
 
     path: {
         type: String,

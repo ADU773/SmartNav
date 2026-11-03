@@ -53,7 +53,7 @@ const locate = async (req, res) => {
         const matches = result.matches.slice(0, 3).map((match) => ({
             ...match,
             name: names.get(match.sceneId)?.name || "Unknown scene",
-            image: names.get(match.sceneId)?.image || "",
+            image: req.body.shareToken ? "" : names.get(match.sceneId)?.image || "",
         }));
 
         res.json({

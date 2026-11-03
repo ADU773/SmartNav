@@ -17,13 +17,13 @@ const REMOTE_MAX_LABEL_LENGTH = 60;
  * name | class, confidence | score }] }. Returns labels only, with no
  * directions.
  */
-async function detectRemotely(scene) {
+async function detectRemotely(scene, ownerId) {
     // The image URL is built from configuration, never from request headers,
     // so a caller cannot point the detection service at a host they choose.
     // It names the uploaded file itself, so older stored forms of the path
     // ("uploads/x.jpg", "https://old-host/uploads/x.jpg") still work.
     const base = (process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/+$/, "");
-    const imageUrl = `${base}/uploads/${encodeURIComponent(path.basename(localFileFor(scene.image)))}`;
+    const imageUrl = base + require("../services/privateMedia").link(ownerId, path.basename(localFileFor(scene.image)));
     let response;
     try {
         response = await fetch(process.env.YOLO_API_URL, {
@@ -67,7 +67,7 @@ const detectObjects = async (req, res) => {
         if (!scene.image) fail(400, "Give this scene a panorama before detecting objects.");
         if (!localFileFor(scene.image)) fail(400, "This scene's image is not an uploaded file, so it cannot be scanned.");
 
-        const result = process.env.YOLO_API_URL ? await detectRemotely(scene) : await detectObjectsInScene(scene);
+        const result = process.env.YOLO_API_URL ? await detectRemotely(scene, req.user.id) : await detectObjectsInScene(scene);
         const labels = [...new Set(result.detections.map((item) => item.label))];
 
         // Saved only if the scene still shows the panorama that was scanned, so

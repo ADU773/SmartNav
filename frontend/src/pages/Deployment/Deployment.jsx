@@ -13,6 +13,7 @@ import FeatureService from '../../services/feature.service';
 import WorkspaceHeader from '../../components/layout/WorkspaceHeader';
 import LocationIndexCard from '../../components/experience/LocationIndexCard';
 import './Deployment.css';
+import PrivacyReview from './PrivacyReview';
 
 export default function Deployment() {
   useDocumentTitle('Deployment');
@@ -21,6 +22,7 @@ export default function Deployment() {
   const { success, error } = useNotification();
   const [publishing, setPublishing] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [reviewReady,setReviewReady] = useState(false);
 
   const publish = async () => {
     if (!currentProject?._id) return;
@@ -66,15 +68,16 @@ export default function Deployment() {
           className="deployment__card"
           title={
             <Space>
-              <GlobalOutlined /> {currentProject.name} <Tag color="green">Ready to publish</Tag>
+              <GlobalOutlined /> {currentProject.name} <Tag>{reviewReady?'Images approved':'Privacy review required'}</Tag>
             </Space>
           }
         >
           <Typography.Paragraph>
             Publishing creates a reusable share token for this project. You can also export its project, scenes, and hotspot configuration as JSON.
           </Typography.Paragraph>
+          <PrivacyReview key={currentProject._id} projectId={currentProject._id} onReady={setReviewReady}/>
           <Space wrap>
-            <Button type="primary" icon={<RocketOutlined />} loading={publishing} onClick={publish}>
+            <Button type="primary" disabled={!reviewReady} icon={<RocketOutlined />} loading={publishing} onClick={publish}>
               Publish experience
             </Button>
             <Button icon={<DownloadOutlined />} onClick={exportProject}>
