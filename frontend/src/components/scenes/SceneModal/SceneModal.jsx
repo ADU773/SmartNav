@@ -7,10 +7,13 @@
 import { Modal, Form, Input } from 'antd';
 import { useState } from 'react';
 import AssetPicker from '../../common/AssetPicker';
+import PrivacyReview from '../../../pages/Deployment/PrivacyReview';
 
 export default function SceneModal({ open, onClose, onSubmit, projectId, assets = [] }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const image = Form.useWatch('image', form);
+  const asset = assets.find(item => item.path === image);
 
   const handleSubmit = async () => {
     try {
@@ -55,6 +58,7 @@ export default function SceneModal({ open, onClose, onSubmit, projectId, assets 
           <AssetPicker assets={assets} preferPanoramic />
         </Form.Item>
       </Form>
+      {open && asset && <PrivacyReview key={asset._id} assetId={asset._id} projectId={projectId}/>}
     </Modal>
   );
 }

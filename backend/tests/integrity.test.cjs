@@ -311,6 +311,8 @@ test('entity integrity against a real isolated MongoDB replica set', { timeout: 
         }
         // The share token is the one deliberate public read path, plus routes
         // inside a published tour (tested with the route finder below).
+        assert.equal((await anon('GET', `/published/${p.shareToken}`)).status,409);
+        await Asset.updateMany({projectId:p._id},{$set:{privacy:{version:'reviewed.jpg',thumb:'reviewed.webp'}}});
         const shared = await anon('GET', `/published/${p.shareToken}`);
         assert.equal(shared.status, 200);
         assert.equal(shared.body.data.project.name, 'Project P');

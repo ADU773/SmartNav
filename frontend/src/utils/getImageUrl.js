@@ -4,6 +4,11 @@
  */
 
 import { API_BASE_URL } from '../constants/api';
+const privateLinks = new Map();
+export function clearMediaLinks() { privateLinks.clear(); }
+export function rememberMedia(links) {
+  for (const [path, url] of Object.entries(links || {})) privateLinks.set(path, url);
+}
 
 /**
  * Build a full URL for an uploaded image.
@@ -12,6 +17,7 @@ import { API_BASE_URL } from '../constants/api';
  */
 export function getImageUrl(path) {
   if (!path) return null;
+  if (privateLinks.has(path)) return API_BASE_URL + privateLinks.get(path);
 
   // Already a full URL
   if (path.startsWith('http://') || path.startsWith('https://')) {
