@@ -130,7 +130,7 @@ export default function PanoramaCapture() {
         {photos.length > 0 && (
           <div className="panorama-capture__grid">
             {photos.map((photo) => (
-              <img key={photo._id} src={getImageUrl(photo.path)} alt="Captured" className="panorama-capture__thumb" />
+              <img key={photo._id} src={getImageUrl(photo.url || photo.path)} alt="Captured" className="panorama-capture__thumb" />
             ))}
           </div>
         )}

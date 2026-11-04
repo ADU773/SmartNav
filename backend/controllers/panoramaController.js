@@ -18,6 +18,29 @@ const SSE_HEARTBEAT_MS = 25000;
 
 const uploadDirectory = path.join(__dirname, "..", "uploads");
 
+// The QR token authorizes only photos belonging to this unexpired session.
+// Raw /uploads paths require owner credentials and cannot be used by SSE clients.
+function sessionPhotos(session) {
+    return session.photos.map(photo => ({
+        ...(photo.toObject ? photo.toObject() : photo),
+        url: `/api/panorama/sessions/${session.token}/photos/${photo._id}`,
+    }));
+}
+
+const getPhoto = async (req, res) => {
+    try {
+        const session = await findOpenSession(req.params.token);
+        const photo = session.photos.find(photo => String(photo._id) === req.params.photoId);
+        if (!photo) fail(404, "Captured photo not found.");
+        const asset = await Asset.findOne({ _id: photo.assetId, projectId: session.projectId }).lean();
+        if (!asset || !/^[\w-][\w.-]*$/.test(asset.filename)) fail(404, "Captured photo not found.");
+        res.set({ "Cache-Control": "private, no-store", "Content-Security-Policy": "sandbox; default-src 'none'" });
+        res.sendFile(path.join(uploadDirectory, asset.filename), error => {
+            if (error && !res.headersSent) res.status(404).end();
+        });
+    } catch (error) { sendError(res, error); }
+};
+
 async function findOpenSession(token) {
     // The token is the session's only credential, so shape-check it before it
     // reaches the database.
@@ -77,7 +100,7 @@ const createSession = async (req, res) => {
 const getSession = async (req, res) => {
     try {
         const session = await findOpenSession(req.params.token);
-        res.json({ success: true, data: { status: session.status, photos: session.photos, expiresAt: session.expiresAt } });
+        res.json({ success: true, data: { status: session.status, photos: sessionPhotos(session), expiresAt: session.expiresAt } });
     } catch (error) { sendError(res, error); }
 };
 
@@ -111,7 +134,7 @@ const streamSession = async (req, res) => {
         res.write(`data: ${serialized}\n\n`);
     };
 
-    send({ status: session.status, photos: session.photos, expiresAt: session.expiresAt });
+    send({ status: session.status, photos: sessionPhotos(session), expiresAt: session.expiresAt });
 
     const poll = setInterval(async () => {
         try {
@@ -120,7 +143,7 @@ const streamSession = async (req, res) => {
                 res.write(`event: expired\ndata: {}\n\n`);
                 return close();
             }
-            send({ status: current.status, photos: current.photos, expiresAt: current.expiresAt });
+            send({ status: current.status, photos: sessionPhotos(current), expiresAt: current.expiresAt });
         } catch (error) {
             req.log?.error({ err: error }, "Panorama stream poll failed");
         }
@@ -150,7 +173,7 @@ const uploadPhoto = async (req, res) => {
 
         // Fast path: a retry of a frame we already stored. No new Asset needed.
         if (metadata && session.photos.some((photo) => photo.frameId === metadata.frameId)) {
-            return res.status(200).json({ success: true, data: { photos: session.photos } });
+            return res.status(200).json({ success: true, data: { photos: sessionPhotos(session) } });
         }
 
         // After the retry check, so a re-sent frame never pays for a resize.
@@ -196,12 +219,12 @@ const uploadPhoto = async (req, res) => {
                 await removeDerivative(uploadDirectory, derived?.thumbnailFilename).catch((cleanupError) => {
                     req.log?.error({ err: cleanupError }, "Failed to remove duplicate capture thumbnail");
                 });
-                return res.status(200).json({ success: true, data: { photos: current.photos } });
+                return res.status(200).json({ success: true, data: { photos: sessionPhotos(current) } });
             }
             fail(400, "This capture session has reached its photo limit.");
         }
 
-        res.status(200).json({ success: true, data: { photos: updated.photos } });
+        res.status(200).json({ success: true, data: { photos: sessionPhotos(updated) } });
     } catch (error) {
         sendError(res, error);
     } finally {
@@ -225,7 +248,7 @@ const completeSession = async (req, res) => {
             { returnDocument: "after" },
         );
         if (!session) fail(404, "This capture session was not found or has expired.");
-        res.json({ success: true, data: { status: session.status, photos: session.photos } });
+        res.json({ success: true, data: { status: session.status, photos: sessionPhotos(session) } });
     } catch (error) { sendError(res, error); }
 };
 
@@ -322,4 +345,4 @@ const finalizeSession = async (req, res) => {
     } catch (error) { sendError(res, error); }
 };
 
-module.exports = { createSession, getSession, streamSession, uploadPhoto, completeSession, finalizeSession, MAX_PANORAMA_PHOTOS };
+module.exports = { createSession, getSession, getPhoto, streamSession, uploadPhoto, completeSession, finalizeSession, MAX_PANORAMA_PHOTOS };
