@@ -275,7 +275,7 @@ export default function PanoramicViewer() {
         .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0) || new Date(a.uploadedAt) - new Date(b.uploadedAt));
       const { blob, report } = await stitchEquirectangular(
         ordered.map((photo) => ({
-          url: getImageUrl(photo.path),
+          url: getImageUrl(photo.url || photo.path),
           yawDeg: photo.yaw,
           pitchDeg: photo.pitch,
           rollDeg: photo.roll,
@@ -448,7 +448,7 @@ export default function PanoramicViewer() {
             ) : (
               <div className="panoramic-viewer__thumbs">
                 {photos.map((photo) => (
-                  <Image key={photo._id} src={getImageUrl(photo.path)} className="panoramic-viewer__thumb" />
+                  <Image key={photo._id} src={getImageUrl(photo.url || photo.path)} className="panoramic-viewer__thumb" />
                 ))}
               </div>
             )}

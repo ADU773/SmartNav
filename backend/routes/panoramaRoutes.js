@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const multer = require("multer");
 const upload = require("../middleware/uploadMiddleware");
-const { createSession, getSession, streamSession, uploadPhoto, completeSession, finalizeSession } = require("../controllers/panoramaController");
+const { createSession, getSession, getPhoto, streamSession, uploadPhoto, completeSession, finalizeSession } = require("../controllers/panoramaController");
 const { matchPanoramaFrames, MAX_FRAMES } = require("../controllers/matchController");
 const { requireAuth } = require("../middleware/authMiddleware");
 const { sessionLimiter, uploadLimiter, matchLimiter } = require("../middleware/rateLimit");
@@ -20,6 +20,7 @@ const matchUpload = multer({
 router.post("/sessions", requireAuth, sessionLimiter, createSession);
 router.get("/sessions/:token", getSession);
 router.get("/sessions/:token/stream", streamSession);
+router.get("/sessions/:token/photos/:photoId", getPhoto);
 router.post("/sessions/:token/photos", uploadLimiter, upload.single("image"), uploadPhoto);
 router.post("/sessions/:token/complete", completeSession);
 // Deletes the source photos after a stitch, so it needs the project owner,

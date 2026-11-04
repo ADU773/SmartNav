@@ -167,6 +167,35 @@ test('panorama session upload metadata, idempotency and completion', { timeout: 
     };
     const fileExists = (filename) => fs.stat(resolveUploadFile(filename)).then(() => true, () => false);
 
+    await t.test('capture photos load from snapshots and live events, with session isolation and expiry', async () => {
+        const { token } = await openSessionWithPhotos(1);
+        const origin = new URL(base).origin;
+        const snapshot = await (await fetch(`${base}/sessions/${token}`)).json();
+        const photo = snapshot.data.photos[0];
+        const image = await fetch(origin + photo.url);
+        assert.equal(image.status, 200);
+        assert.match(image.headers.get('content-type'), /image\/png/);
+        assert.deepEqual(Buffer.from(await image.arrayBuffer()), png);
+
+        const abort = new AbortController();
+        try {
+            const stream = await fetch(`${base}/sessions/${token}/stream`, { signal: abort.signal });
+            const reader = stream.body.getReader();
+            let frame = '';
+            while (!frame.includes('\n\n')) frame += new TextDecoder().decode((await reader.read()).value);
+            const event = JSON.parse(frame.split('\n').find(line => line.startsWith('data: ')).slice(6));
+            assert.equal(event.photos[0].url, photo.url);
+            assert.equal((await fetch(origin + event.photos[0].url)).status, 200);
+        } finally { abort.abort(); }
+
+        const other = await openSessionWithPhotos(0);
+        assert.equal((await fetch(origin + photo.url.replace(token, other.token))).status, 404);
+        await fetch(`${base}/sessions/${token}/complete`, { method: 'POST' });
+        assert.equal((await fetch(origin + photo.url)).status, 200, 'completed photos remain readable for stitching');
+        await PanoramaSession.updateOne({ token }, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+        assert.equal((await fetch(origin + photo.url)).status, 404);
+    });
+
     await t.test('finalize deletes the source photos and their files, and keeps the panorama', async () => {
         const { token, photoIds } = await openSessionWithPhotos(3);
         const sources = await Asset.find({ _id: { $in: photoIds } }).lean();
